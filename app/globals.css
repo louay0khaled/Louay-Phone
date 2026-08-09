@@ -1,0 +1,13 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+:root { --sky: #38bdf8; --sky-strong: #0ea5e9; --ink: #f8fafc; --muted: #94a3b8; --surface: #0b1220; --surface-2: #111827; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; font-family: 'Cairo', sans-serif; background: #030712; color: var(--ink); }
+button, a { -webkit-tap-highlight-color: transparent; }
+::selection { background: var(--sky); color: #00111c; }
+
+.luxury-grid { background-image: linear-gradient(rgba(56,189,248,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(56,189,248,.045) 1px, transparent 1px); background-size: 48px 48px; }
+.glass { background: rgba(15,23,42,.68); border: 1px solid rgba(148,163,184,.12); backdrop-filter: blur(18px); }
+.glow { box-shadow: 0 0 60px rgba(14,165,233,.12); }
