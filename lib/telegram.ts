@@ -1,10 +1,8 @@
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-
-if (!BOT_TOKEN) {
-  throw new Error('TELEGRAM_BOT_TOKEN is missing');
+function getBotToken() {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error('TELEGRAM_BOT_TOKEN is missing');
+  return token;
 }
-
-const API_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 export function escapeHtml(input: string) {
   return input
@@ -16,7 +14,8 @@ export function escapeHtml(input: string) {
 }
 
 export async function sendTelegramMessage(chatId: number | string, text: string) {
-  const response = await fetch(`${API_BASE}/sendMessage`, {
+  const botToken = getBotToken();
+  const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
