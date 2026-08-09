@@ -22,7 +22,11 @@ export default function ChatWidget() {
     try {
       const res = await fetch('/api/chat/messages/get', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: currentToken }), cache: 'no-store' });
       const data = await res.json();
-      if (res.ok) { setMessages(data.messages || []); setTicketId(data.ticketId || ''); setName((current) => current || data.visitorName || ''); }
+      if (res.ok) {
+        setMessages(data.messages || []);
+        setTicketId(data.ticketId || '');
+        setName((current) => current || data.visitorName || '');
+      }
     } catch {}
   }
 
@@ -31,33 +35,62 @@ export default function ChatWidget() {
     const res = await fetch('/api/chat/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: saved, name: preferredName?.trim() || name.trim() || undefined }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'تعذر فتح المحادثة');
-    localStorage.setItem(TOKEN_KEY, data.token); setToken(data.token); setTicketId(data.ticketId || ''); if (data.visitorName) setName(data.visitorName); return data.token as string;
+    localStorage.setItem(TOKEN_KEY, data.token);
+    setToken(data.token);
+    setTicketId(data.ticketId || '');
+    if (data.visitorName) setName(data.visitorName);
+    return data.token as string;
   }
 
   async function openSession() {
-    setLoading(true); setError('');
-    try { const currentToken = await ensureSession(); await refresh(currentToken); }
-    catch (e) { setError(e instanceof Error ? e.message : 'تعذر فتح المحادثة'); }
-    finally { setLoading(false); }
+    setLoading(true);
+    setError('');
+    try {
+      const currentToken = await ensureSession();
+      await refresh(currentToken);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'تعذر فتح المحادثة');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function sendMessage() {
-    const text = draft.trim(); if (!text || sending) return;
-    setSending(true); setError('');
+    const text = draft.trim();
+    if (!text || sending) return;
+    setSending(true);
+    setError('');
     try {
       const currentToken = token || await ensureSession();
       const res = await fetch('/api/chat/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: currentToken, text, name: name.trim() || undefined }) });
-      const data = await res.json(); if (!res.ok) throw new Error(data.error || 'تعذر إرسال الرسالة');
-      setDraft(''); setTicketId(data.ticketId || ticketId); await refresh(currentToken);
-    } catch (e) { setError(e instanceof Error ? e.message : 'تعذر إرسال الرسالة'); }
-    finally { setSending(false); }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'تعذر إرسال الرسالة');
+      setDraft('');
+      setTicketId(data.ticketId || ticketId);
+      await refresh(currentToken);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'تعذر إرسال الرسالة');
+    } finally {
+      setSending(false);
+    }
   }
 
   useEffect(() => {
-    const handler = () => { setOpen(true); void openSession(); };
-    window.addEventListener('louay:open-chat', handler);
-    return () => window.removeEventListener('louay:open-chat', handler);
+    const openChat = () => { setOpen(true); void openSession(); };
+    const onGlobalClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[data-open-chat]')) openChat();
+    };
+
+    window.addEventListener('louay:open-chat', openChat);
+    document.addEventListener('click', onGlobalClick, true);
+
+    return () => {
+      window.removeEventListener('louay:open-chat', openChat);
+      document.removeEventListener('click', onGlobalClick, true);
+    };
   }, []);
+
   useEffect(() => { if (open && !token) void openSession(); }, [open]);
   useEffect(() => { if (!open || !token) return; const timer = window.setInterval(() => void refresh(), 2000); return () => window.clearInterval(timer); }, [open, token]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
