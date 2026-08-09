@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { LayoutDashboard, Smartphone, CreditCard, ShoppingBag, MessageCircle, Star, Settings } from 'lucide-react';
@@ -10,12 +11,28 @@ const links = [
 ] as const;
 
 export default async function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // The login page is nested under /admin, so the parent layout must explicitly
+  // allow it to render before an authenticated session exists. The middleware
+  // sets this header for every request and overwrites any client-supplied value.
+  const pathname = (await headers()).get('x-louay-pathname');
+  if (pathname === '/admin/login') return children;
+
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
   if (!userId) redirect('/admin/login');
-  const { data: admin } = await supabase.from('admins').select('id,name,role,is_active').eq('id', userId).eq('is_active', true).maybeSingle();
-  if (!admin) { await supabase.auth.signOut(); redirect('/admin/login?error=unauthorized'); }
+
+  const { data: admin } = await supabase
+    .from('admins')
+    .select('id,name,role,is_active')
+    .eq('id', userId)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (!admin) {
+    await supabase.auth.signOut();
+    redirect('/admin/login?error=unauthorized');
+  }
 
   return <div dir="rtl" className="min-h-screen bg-slate-950 text-white">
     <aside className="fixed inset-y-0 right-0 hidden w-72 border-l border-white/10 bg-slate-950/95 p-5 lg:block">
