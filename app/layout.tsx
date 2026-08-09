@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import LiveChatWidget from '@/components/store/LiveChatWidget';
+import ChatWidget from '@/components/store/ChatWidget';
 
 export const metadata: Metadata = {
   title: 'Louay Phone | هواتف فاخرة',
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ar" dir="rtl"><body>{children}<LiveChatWidget /></body></html>;
+  return <html lang="ar" dir="rtl"><body>{children}<ChatWidget /></body></html>;
 }
