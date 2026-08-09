@@ -5,10 +5,10 @@ const items = [
   ['المنتجات', 'إضافة وتعديل الهواتف والصور والمواصفات والأسعار', '/admin/products'],
   ['التقسيط', 'إدارة خطط التقسيط لكل هاتف', '/admin/installments'],
   ['الطلبات', 'متابعة الطلبات وحالاتها', '/admin/orders'],
-  ['المحادثات', 'استقبال والرد على استفسارات Telegram', '/admin/conversations'],
+  ['المحادثات', 'استقبال ومراجعة استفسارات Telegram والرد عليها', '/admin/messages'],
   ['التقييمات', 'مراجعة تقييمات وتعليقات العملاء', '/admin/reviews'],
   ['الإعدادات', 'سعر الصرف وبيانات المتجر وTelegram', '/admin/settings'],
-];
+] as const;
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
