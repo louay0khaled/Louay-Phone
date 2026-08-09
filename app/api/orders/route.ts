@@ -15,9 +15,23 @@ const bodySchema = z.object({
   notes: z.string().trim().max(1000).optional().default(''),
 });
 
+function readExchangeRate(value: unknown) {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return Number(value);
+  if (value && typeof value === 'object') {
+    const v = value as Record<string, unknown>;
+    return Number(v.usd_to_syp ?? v.rate ?? 0);
+  }
+  return 0;
+}
+
 function toSyp(priceUsd: number | null, priceSyp: number | null, rate: number) {
-  if (priceSyp != null) return Number(priceSyp);
-  if (priceUsd != null && rate > 0) return Math.round(Number(priceUsd) * rate);
+  // USD is the source of truth when present so a daily exchange-rate change
+  // immediately affects the displayed/ordered SYP price. price_syp remains a cache.
+  if (priceUsd != null && Number(priceUsd) > 0 && rate > 0) {
+    return Math.round(Number(priceUsd) * rate);
+  }
+  if (priceSyp != null && Number(priceSyp) > 0) return Number(priceSyp);
   return 0;
 }
 
@@ -40,6 +54,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'الهاتف المطلوب غير موجود.' }, { status: 404 });
     }
 
+    const rate = readExchangeRate(rateRow?.value);
+    const totalPrice = toSyp(product.price_usd, product.price_syp, rate);
+
+    if (totalPrice <= 0) {
+      return NextResponse.json({ error: 'سعر المنتج بالليرة غير متاح حاليًا. يرجى المحاولة لاحقًا.' }, { status: 503 });
+    }
+
     let plan: any | null = null;
     if (payload.installmentPlanId) {
       const { data } = await supabase
@@ -60,14 +81,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'هذا الهاتف غير متاح للتقسيط.' }, { status: 400 });
     }
 
-    const rate = Number((rateRow?.value as any)?.usd_to_syp ?? 0);
-    const totalPrice = toSyp(product.price_usd, product.price_syp, rate);
-
     const install = plan
       ? calculateInstallment(totalPrice, {
-          months: plan.months,
+          months: Number(plan.months),
           first_payment_type: plan.first_payment_type,
           first_payment_value: Number(plan.first_payment_value),
+          // Plans are stored in SYP by the admin product editor.
           total_price: plan.total_price != null ? Number(plan.total_price) : totalPrice,
           monthly_amount: plan.monthly_amount != null ? Number(plan.monthly_amount) : null,
         })
@@ -89,7 +108,11 @@ export async function POST(req: Request) {
       if (customerError) throw customerError;
       customerId = insertedCustomer.id;
     } else {
-      await supabase.from('customers').update({ name: payload.name, address: payload.address }).eq('id', customerId);
+      const { error: customerUpdateError } = await supabase
+        .from('customers')
+        .update({ name: payload.name, address: payload.address })
+        .eq('id', customerId);
+      if (customerUpdateError) throw customerUpdateError;
     }
 
     const { data: order, error: orderError } = await supabase
@@ -100,7 +123,7 @@ export async function POST(req: Request) {
         installment_plan_id: plan?.id ?? null,
         status: 'new',
         notes: payload.notes || null,
-        total_amount: totalPrice || null,
+        total_amount: totalPrice,
         first_payment: install?.firstPayment ?? null,
         monthly_amount: install?.monthly ?? null,
         months: install?.months ?? null,
@@ -122,7 +145,7 @@ export async function POST(req: Request) {
           adminChatId,
           [
             `<b>طلب جديد — Louay Phone</b>`,
-            `<b>رقم الطلب:</b> ${escapeHtml(order.id)}`,
+            `<b>رقم الطلب:</b> <code>${escapeHtml(order.id)}</code>`,
             `<b>الهاتف:</b> ${escapeHtml(product.name)}`,
             `<b>الزبون:</b> ${escapeHtml(payload.name)}`,
             `<b>الهاتف للتواصل:</b> ${escapeHtml(payload.phone)}`,
@@ -130,14 +153,11 @@ export async function POST(req: Request) {
             planText,
             `<b>الملاحظات:</b> ${escapeHtml(payload.notes || '—')}`,
             `<b>السعر الإجمالي:</b> ${Math.round(totalPrice).toLocaleString('ar-SY')} ل.س`,
-            `\nللرد من تيليجرام استخدم: <code>/reply ${escapeHtml(order.id)} نص الرد</code>`,
-          ]
-            .filter(Boolean)
-            .join('\n'),
+          ].filter(Boolean).join('\n'),
         );
         telegramNotified = true;
-      } catch {
-        telegramNotified = false;
+      } catch (telegramError) {
+        console.error('Telegram order notification failed:', telegramError);
       }
     }
 
