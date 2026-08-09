@@ -18,16 +18,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
       const parsed = parseReplyCommand(text);
       if (!parsed) { try { await sendTelegramMessage(adminChatId, 'صيغة الرد غير صحيحة. استخدم: <code>/reply ticket_id نص الرد</code>'); } catch {} return NextResponse.json({ ok: true }); }
 
-      const { data: conversation } = await supabase.from('conversations').select('id,ticket_code,telegram_chat_id,customer_id,status').or(`id.eq.${parsed.ticketId},ticket_code.eq.${parsed.ticketId}`).maybeSingle();
+      const isTicketCode = /^LP-[A-Z0-9]{6}$/.test(parsed.ticketId);
+      const query = supabase.from('conversations').select('id,ticket_code,telegram_chat_id,customer_id,status');
+      const { data: conversation } = isTicketCode
+        ? await query.eq('ticket_code', parsed.ticketId).maybeSingle()
+        : await query.eq('id', parsed.ticketId).maybeSingle();
       if (!conversation) { try { await sendTelegramMessage(adminChatId, `لم أجد المحادثة <code>${escapeHtml(parsed.ticketId)}</code>.`); } catch {} return NextResponse.json({ ok: true }); }
 
       const targetChatId = conversation.telegram_chat_id as number | null;
-      // Website-only conversations deliberately have no Telegram chat id. The reply is stored
-      // in the same conversation and delivered to the website widget on its next poll.
       if (targetChatId) {
         try { await sendTelegramMessage(targetChatId, `رد الإدارة:\n\n${escapeHtml(parsed.replyText)}`); } catch (error) { console.error('Telegram customer delivery failed:', error); }
       }
-
       await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'admin', message_text: parsed.replyText, telegram_message_id: message.message_id, is_read: true });
       await supabase.from('conversations').update({ status: 'processing', last_message_at: new Date().toISOString() }).eq('id', conversation.id);
       try { await sendTelegramMessage(adminChatId, targetChatId ? `تم إرسال الرد على <code>${escapeHtml(conversation.ticket_code ?? parsed.ticketId)}</code> عبر Telegram.` : `تم إرسال الرد إلى محادثة الموقع <code>${escapeHtml(conversation.ticket_code ?? parsed.ticketId)}</code>.`); } catch {}
@@ -40,11 +41,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
     else await supabase.from('customers').update({ name: displayName, telegram_user_id: fromId, telegram_chat_id: chatId, telegram_username: username }).eq('id', customerId);
 
     const { data: conversation } = await supabase.from('conversations').select('id,ticket_code,telegram_chat_id').eq('telegram_chat_id', chatId).maybeSingle(); let conversationId = conversation?.id as string | undefined;
-    if (!conversationId) { const { data: insertedConversation, error: conversationError } = await supabase.from('conversations').insert({ customer_id: customerId, telegram_chat_id: chatId, status: 'open' }).select('id,ticket_code').single(); if (conversationError) throw conversationError; conversationId = insertedConversation.id; }
+    let ticketCode = conversation?.ticket_code as string | null | undefined;
+    if (!conversationId) { const { data: insertedConversation, error: conversationError } = await supabase.from('conversations').insert({ customer_id: customerId, telegram_chat_id: chatId, status: 'open' }).select('id,ticket_code').single(); if (conversationError) throw conversationError; conversationId = insertedConversation.id; ticketCode = insertedConversation.ticket_code; }
     else await supabase.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', conversationId);
 
     await supabase.from('messages').insert({ conversation_id: conversationId, sender_type: 'user', message_text: text, telegram_message_id: message.message_id, is_read: false });
-    if (adminChatId !== null) { try { await sendTelegramMessage(adminChatId, [`<b>رسالة جديدة من Telegram</b>`,`<b>التذكرة:</b> <code>${escapeHtml(conversation?.ticket_code ?? conversationId)}</code>`,`<b>الاسم:</b> ${escapeHtml(displayName)}`,`<b>المعرف:</b> ${escapeHtml(username ?? '—')}`,`<b>الرسالة:</b>`,escapeHtml(text),`\nللرد استخدم: <code>/reply ${escapeHtml(conversation?.ticket_code ?? conversationId)} نص الرد</code>`].join('\n')); } catch {} }
+    if (adminChatId !== null) { try { await sendTelegramMessage(adminChatId, [`<b>رسالة جديدة من Telegram</b>`,`<b>التذكرة:</b> <code>${escapeHtml(ticketCode ?? conversationId)}</code>`,`<b>الاسم:</b> ${escapeHtml(displayName)}`,`<b>المعرف:</b> ${escapeHtml(username ?? '—')}`,`<b>الرسالة:</b>`,escapeHtml(text),`\nللرد استخدم: <code>/reply ${escapeHtml(ticketCode ?? conversationId)} نص الرد</code>`].join('\n')); } catch {} }
     try { await sendTelegramMessage(chatId, text === '/start' ? 'أهلًا بك في Louay Phone. أرسل استفسارك أو اكتب اسم الهاتف الذي تريده، وسيصلك الرد من الإدارة مباشرة.' : 'تم استلام رسالتك، وسيتم الرد عليك من الإدارة قريبًا.'); } catch {}
     return NextResponse.json({ ok: true });
   } catch (error: any) { console.error('Telegram webhook error:', error); return NextResponse.json({ ok: false, error: error?.message ?? 'Webhook error' }, { status: 500 }); }
