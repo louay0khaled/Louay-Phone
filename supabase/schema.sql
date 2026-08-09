@@ -71,3 +71,7 @@ create index if not exists products_brand_idx on products(brand_id);
 create index if not exists products_active_idx on products(is_active);
 create index if not exists orders_status_idx on orders(status);
 create index if not exists messages_conversation_idx on messages(conversation_id, created_at);
+
+-- Product image storage is provisioned separately in Supabase, but these policies
+-- document the intended security model for a reproducible deployment.
+-- Bucket: product-images, public read, authenticated active admins write/delete.
