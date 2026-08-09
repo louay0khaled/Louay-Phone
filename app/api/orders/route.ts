@@ -117,24 +117,28 @@ export async function POST(req: Request) {
         ? `\n<b>التقسيط:</b> ${install.months} أشهر\n<b>الدفعة الأولى:</b> ${Math.round(install.firstPayment).toLocaleString('ar-SY')} ل.س\n<b>القسط الشهري:</b> ${Math.round(install.monthly).toLocaleString('ar-SY')} ل.س`
         : '';
 
-      await sendTelegramMessage(
-        adminChatId,
-        [
-          `<b>طلب جديد — Louay Phone</b>`,
-          `<b>رقم الطلب:</b> ${escapeHtml(order.id)}`,
-          `<b>الهاتف:</b> ${escapeHtml(product.name)}`,
-          `<b>الزبون:</b> ${escapeHtml(payload.name)}`,
-          `<b>الهاتف للتواصل:</b> ${escapeHtml(payload.phone)}`,
-          `<b>العنوان:</b> ${escapeHtml(payload.address)}`,
-          planText,
-          `<b>الملاحظات:</b> ${escapeHtml(payload.notes || '—')}`,
-          `<b>السعر الإجمالي:</b> ${Math.round(totalPrice).toLocaleString('ar-SY')} ل.س`,
-          `\nللرد من تيليجرام استخدم: <code>/reply ${escapeHtml(order.id)} نص الرد</code>`,
-        ]
-          .filter(Boolean)
-          .join('\n'),
-      );
-      telegramNotified = true;
+      try {
+        await sendTelegramMessage(
+          adminChatId,
+          [
+            `<b>طلب جديد — Louay Phone</b>`,
+            `<b>رقم الطلب:</b> ${escapeHtml(order.id)}`,
+            `<b>الهاتف:</b> ${escapeHtml(product.name)}`,
+            `<b>الزبون:</b> ${escapeHtml(payload.name)}`,
+            `<b>الهاتف للتواصل:</b> ${escapeHtml(payload.phone)}`,
+            `<b>العنوان:</b> ${escapeHtml(payload.address)}`,
+            planText,
+            `<b>الملاحظات:</b> ${escapeHtml(payload.notes || '—')}`,
+            `<b>السعر الإجمالي:</b> ${Math.round(totalPrice).toLocaleString('ar-SY')} ل.س`,
+            `\nللرد من تيليجرام استخدم: <code>/reply ${escapeHtml(order.id)} نص الرد</code>`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        );
+        telegramNotified = true;
+      } catch {
+        telegramNotified = false;
+      }
     }
 
     return NextResponse.json({ ok: true, orderId: order.id, telegramNotified });
