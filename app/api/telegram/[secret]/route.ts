@@ -24,9 +24,8 @@ function extractDisplayName(message: NonNullable<TelegramUpdate['message']>) {
   return [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim() || from?.username || message.chat.title || 'مستخدم';
 }
 
-export async function POST(req: Request, { params }: { params: Promise<{ secret: string }> }) {
-  const { secret } = await params;
-  if (secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+export async function POST(req: Request, { params }: { params: { secret: string } }) {
+  if (params.secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
     return NextResponse.json({ ok: false }, { status: 404 });
   }
 
@@ -62,11 +61,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
       if (!targetChatId) {
         const { data: order } = await supabase
           .from('orders')
-          .select('id, customer_id, customers!orders_customer_id_fkey(telegram_chat_id)')
+          .select('id, customer_id')
           .eq('id', parsed.ticketId)
           .maybeSingle();
 
-        targetChatId = (order?.customers as any)?.telegram_chat_id ?? null;
+        if (order?.customer_id) {
+          const { data: customer } = await supabase
+            .from('customers')
+            .select('telegram_chat_id')
+            .eq('id', order.customer_id)
+            .maybeSingle();
+
+          targetChatId = customer?.telegram_chat_id ?? null;
+
+          if (!conversationId) {
+            const { data: linkedConversation } = await supabase
+              .from('conversations')
+              .select('id')
+              .eq('customer_id', order.customer_id)
+              .maybeSingle();
+            conversationId = linkedConversation?.id ?? null;
+          }
+        }
       }
 
       if (!targetChatId) {
