@@ -45,7 +45,9 @@ export async function POST(req: Request, { params }: { params: { secret: string 
     if (adminChatId !== null && chatId === adminChatId && text.startsWith('/reply')) {
       const parsed = parseReplyCommand(text);
       if (!parsed) {
-        await sendTelegramMessage(adminChatId, 'صيغة الرد غير صحيحة. استخدم: <code>/reply ticket_id نص الرد</code>');
+        try {
+          await sendTelegramMessage(adminChatId, 'صيغة الرد غير صحيحة. استخدم: <code>/reply ticket_id نص الرد</code>');
+        } catch {}
         return NextResponse.json({ ok: true });
       }
 
@@ -86,11 +88,15 @@ export async function POST(req: Request, { params }: { params: { secret: string 
       }
 
       if (!targetChatId) {
-        await sendTelegramMessage(adminChatId, `لم أجد محادثة مرتبطة بالتذكرة <code>${escapeHtml(parsed.ticketId)}</code>.`);
+        try {
+          await sendTelegramMessage(adminChatId, `لم أجد محادثة مرتبطة بالتذكرة <code>${escapeHtml(parsed.ticketId)}</code>.`);
+        } catch {}
         return NextResponse.json({ ok: true });
       }
 
-      await sendTelegramMessage(targetChatId, `رد الإدارة:\n\n${escapeHtml(parsed.replyText)}`);
+      try {
+        await sendTelegramMessage(targetChatId, `رد الإدارة:\n\n${escapeHtml(parsed.replyText)}`);
+      } catch {}
 
       if (conversationId) {
         await supabase.from('messages').insert({
@@ -102,7 +108,9 @@ export async function POST(req: Request, { params }: { params: { secret: string 
         await supabase.from('conversations').update({ status: 'processing', last_message_at: new Date().toISOString() }).eq('id', conversationId);
       }
 
-      await sendTelegramMessage(adminChatId, `تم إرسال الرد على <code>${escapeHtml(parsed.ticketId)}</code>.`);
+      try {
+        await sendTelegramMessage(adminChatId, `تم إرسال الرد على <code>${escapeHtml(parsed.ticketId)}</code>.`);
+      } catch {}
       return NextResponse.json({ ok: true });
     }
 
@@ -168,25 +176,29 @@ export async function POST(req: Request, { params }: { params: { secret: string 
     });
 
     if (adminChatId !== null) {
-      await sendTelegramMessage(
-        adminChatId,
-        [
-          `<b>رسالة جديدة من Telegram</b>`,
-          `<b>التذكرة:</b> ${escapeHtml(conversationId)}`,
-          `<b>الاسم:</b> ${escapeHtml(displayName)}`,
-          `<b>المعرف:</b> ${escapeHtml(username ?? '—')}`,
-          `<b>الرسالة:</b>`,
-          escapeHtml(text),
-          `\nللرد استخدم: <code>/reply ${escapeHtml(conversationId)} نص الرد</code>`,
-        ].join('\n'),
-      );
+      try {
+        await sendTelegramMessage(
+          adminChatId,
+          [
+            `<b>رسالة جديدة من Telegram</b>`,
+            `<b>التذكرة:</b> ${escapeHtml(conversationId)}`,
+            `<b>الاسم:</b> ${escapeHtml(displayName)}`,
+            `<b>المعرف:</b> ${escapeHtml(username ?? '—')}`,
+            `<b>الرسالة:</b>`,
+            escapeHtml(text),
+            `\nللرد استخدم: <code>/reply ${escapeHtml(conversationId)} نص الرد</code>`,
+          ].join('\n'),
+        );
+      } catch {}
     }
 
-    if (text === '/start') {
-      await sendTelegramMessage(chatId, 'أهلًا بك في Louay Phone. أرسل استفسارك أو اكتب اسم الهاتف الذي تريده، وسيصلك الرد من الإدارة مباشرة.');
-    } else {
-      await sendTelegramMessage(chatId, 'تم استلام رسالتك، وسيتم الرد عليك من الإدارة قريبًا.');
-    }
+    try {
+      if (text === '/start') {
+        await sendTelegramMessage(chatId, 'أهلًا بك في Louay Phone. أرسل استفسارك أو اكتب اسم الهاتف الذي تريده، وسيصلك الرد من الإدارة مباشرة.');
+      } else {
+        await sendTelegramMessage(chatId, 'تم استلام رسالتك، وسيتم الرد عليك من الإدارة قريبًا.');
+      }
+    } catch {}
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
