@@ -5,45 +5,145 @@ import { calculateInstallment } from '@/lib/installments';
 import { escapeHtml, getAdminChatId, sendTelegramMessage } from '@/lib/telegram';
 
 export const dynamic = 'force-dynamic';
-const bodySchema = z.object({ productId: z.string().uuid(), installmentPlanId: z.string().uuid().nullable().optional(), name: z.string().trim().min(2).max(120), phone: z.string().trim().min(5).max(30), address: z.string().trim().min(2).max(150), notes: z.string().trim().max(1000).optional().default(''), chatToken: z.string().min(20).max(128).optional() });
-function readExchangeRate(value: unknown) { if (typeof value === 'number') return value; if (typeof value === 'string') return Number(value); if (value && typeof value === 'object') { const v = value as Record<string, unknown>; return Number(v.usd_to_syp ?? v.rate ?? 0); } return 0; }
-function toSyp(priceUsd: number | null, priceSyp: number | null, rate: number) { if (priceUsd != null && Number(priceUsd) > 0 && rate > 0) return Math.round(Number(priceUsd) * rate); if (priceSyp != null && Number(priceSyp) > 0) return Number(priceSyp); return 0; }
+
+const bodySchema = z.object({
+  productId: z.string().uuid(),
+  installmentPlanId: z.string().uuid().nullable().optional(),
+  name: z.string().trim().min(2).max(120),
+  phone: z.string().trim().min(5).max(30),
+  address: z.string().trim().min(2).max(150),
+  notes: z.string().trim().max(1000).optional().default(''),
+  chatToken: z.string().min(20).max(128).optional(),
+});
+
+function readExchangeRate(value: unknown) {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return Number(value);
+  if (value && typeof value === 'object') {
+    const v = value as Record<string, unknown>;
+    return Number(v.usd_to_syp ?? v.rate ?? 0);
+  }
+  return 0;
+}
+
+function toSyp(priceUsd: number | null, priceSyp: number | null, rate: number) {
+  if (priceUsd != null && Number(priceUsd) > 0 && rate > 0) return Math.round(Number(priceUsd) * rate);
+  if (priceSyp != null && Number(priceSyp) > 0) return Number(priceSyp);
+  return 0;
+}
+
 export async function POST(req: Request) {
   try {
     const payload = bodySchema.parse(await req.json());
-    const supabase = createAdminClient();
-    const [{ data: rateRow }, { data: product }] = await Promise.all([supabase.from('settings').select('value').eq('key', 'exchange_rate').maybeSingle(), supabase.from('products').select('id,name,slug,model,description,price_usd,price_syp,installment_enabled,is_active').eq('id', payload.productId).eq('is_active', true).maybeSingle()]);
+    const db = createAdminClient() as any;
+
+    const [{ data: rateRow }, { data: product }] = await Promise.all([
+      db.from('settings').select('value').eq('key', 'exchange_rate').maybeSingle(),
+      db.from('products').select('id,name,slug,model,description,price_usd,price_syp,installment_enabled,is_active').eq('id', payload.productId).eq('is_active', true).maybeSingle(),
+    ]);
+
     if (!product) return NextResponse.json({ error: 'الهاتف المطلوب غير موجود.' }, { status: 404 });
-    const rate = readExchangeRate(rateRow?.value); const totalPrice = toSyp(product.price_usd, product.price_syp, rate);
+
+    const rate = readExchangeRate(rateRow?.value);
+    const totalPrice = toSyp(product.price_usd, product.price_syp, rate);
     if (totalPrice <= 0) return NextResponse.json({ error: 'سعر المنتج بالليرة غير متاح حاليًا. يرجى المحاولة لاحقًا.' }, { status: 503 });
+
     let plan: any | null = null;
-    if (payload.installmentPlanId) { const { data } = await supabase.from('installment_plans').select('id,product_id,months,first_payment_type,first_payment_value,total_price,monthly_amount,is_active').eq('id', payload.installmentPlanId).eq('product_id', product.id).eq('is_active', true).maybeSingle(); if (!data) return NextResponse.json({ error: 'خطة التقسيط غير متاحة.' }, { status: 400 }); plan = data; }
+    if (payload.installmentPlanId) {
+      const { data } = await db
+        .from('installment_plans')
+        .select('id,product_id,months,first_payment_type,first_payment_value,total_price,monthly_amount,is_active')
+        .eq('id', payload.installmentPlanId)
+        .eq('product_id', product.id)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!data) return NextResponse.json({ error: 'خطة التقسيط غير متاحة.' }, { status: 400 });
+      plan = data;
+    }
+
     if (!product.installment_enabled && plan) return NextResponse.json({ error: 'هذا الهاتف غير متاح للتقسيط.' }, { status: 400 });
-    const install = plan ? calculateInstallment(totalPrice, { months: Number(plan.months), first_payment_type: plan.first_payment_type, first_payment_value: Number(plan.first_payment_value), total_price: plan.total_price != null ? Number(plan.total_price) : totalPrice, monthly_amount: plan.monthly_amount != null ? Number(plan.monthly_amount) : null }) : null;
-    const { data: customerMatch } = await supabase.from('customers').select('id,name,phone,address').eq('phone', payload.phone).maybeSingle();
+
+    const install = plan
+      ? calculateInstallment(totalPrice, {
+          months: Number(plan.months),
+          first_payment_type: plan.first_payment_type,
+          first_payment_value: Number(plan.first_payment_value),
+          total_price: plan.total_price != null ? Number(plan.total_price) : totalPrice,
+          monthly_amount: plan.monthly_amount != null ? Number(plan.monthly_amount) : undefined,
+        })
+      : null;
+
+    const { data: customerMatch } = await db.from('customers').select('id,name,phone,address').eq('phone', payload.phone).maybeSingle();
     let customerId = customerMatch?.id as string | undefined;
-    if (!customerId) { const { data: insertedCustomer, error: customerError } = await supabase.from('customers').insert({ name: payload.name, phone: payload.phone, address: payload.address }).select('id').single(); if (customerError) throw customerError; customerId = insertedCustomer.id; } else { const { error } = await supabase.from('customers').update({ name: payload.name, address: payload.address }).eq('id', customerId); if (error) throw error; }
+    if (!customerId) {
+      const { data: insertedCustomer, error: customerError } = await db.from('customers').insert({ name: payload.name, phone: payload.phone, address: payload.address }).select('id').single();
+      if (customerError) throw customerError;
+      customerId = insertedCustomer.id;
+    } else {
+      const { error: customerUpdateError } = await db.from('customers').update({ name: payload.name, address: payload.address }).eq('id', customerId);
+      if (customerUpdateError) throw customerUpdateError;
+    }
 
-    // One chat session per visitor/device. If the order came from the website chat,
-    // attach the existing conversation instead of creating a second one.
-    let conversationId: string | null = null; let ticketCode: string | null = null;
+    let conversationId: string | null = null;
+    let ticketCode: string | null = null;
+
     if (payload.chatToken) {
-      const { data: conversation } = await supabase.from('conversations').select('id,ticket_code,customer_id').eq('visitor_token', payload.chatToken).maybeSingle();
-      if (conversation) { conversationId = conversation.id; ticketCode = conversation.ticket_code; await supabase.from('conversations').update({ customer_id: customerId, visitor_name: payload.name, last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversation.id); }
-    }
-    if (!conversationId) {
-      const { data: existing } = await supabase.from('conversations').select('id,ticket_code').eq('customer_id', customerId).is('telegram_chat_id', null).maybeSingle();
-      if (existing) { conversationId = existing.id; ticketCode = existing.ticket_code; }
-      else { const { data: created, error } = await supabase.from('conversations').insert({ customer_id: customerId, visitor_token: payload.chatToken ?? null, visitor_name: payload.name, telegram_chat_id: null, status: 'open', last_message_at: new Date().toISOString() }).select('id,ticket_code').single(); if (error) throw error; conversationId = created.id; ticketCode = created.ticket_code; }
+      const { data: conversation } = await db.from('conversations').select('id,ticket_code,customer_id').eq('visitor_token', payload.chatToken).maybeSingle();
+      if (conversation) {
+        conversationId = conversation.id;
+        ticketCode = conversation.ticket_code;
+        await db.from('conversations').update({ customer_id: customerId, visitor_name: payload.name, last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversation.id);
+      }
     }
 
-    const { data: order, error: orderError } = await supabase.from('orders').insert({ customer_id: customerId, product_id: product.id, installment_plan_id: plan?.id ?? null, status: 'new', notes: payload.notes || null, total_amount: totalPrice, first_payment: install?.firstPayment ?? null, monthly_amount: install?.monthly ?? null, months: install?.months ?? null }).select('id,created_at').single();
+    if (!conversationId) {
+      const { data: existing } = await db.from('conversations').select('id,ticket_code').eq('customer_id', customerId).is('telegram_chat_id', null).maybeSingle();
+      if (existing) {
+        conversationId = existing.id;
+        ticketCode = existing.ticket_code;
+      } else {
+        const { data: created, error } = await db
+          .from('conversations')
+          .insert({ customer_id: customerId, visitor_token: payload.chatToken ?? null, visitor_name: payload.name, telegram_chat_id: null, status: 'open', last_message_at: new Date().toISOString() })
+          .select('id,ticket_code')
+          .single();
+        if (error) throw error;
+        conversationId = created.id;
+        ticketCode = created.ticket_code;
+      }
+    }
+
+    const { data: order, error: orderError } = await db.from('orders').insert({
+      customer_id: customerId,
+      product_id: product.id,
+      installment_plan_id: plan?.id ?? null,
+      status: 'new',
+      notes: payload.notes || null,
+      total_amount: totalPrice,
+      first_payment: install?.firstPayment ?? null,
+      monthly_amount: install?.monthly ?? null,
+      months: install?.months ?? null,
+    }).select('id,created_at').single();
     if (orderError) throw orderError;
 
-    await supabase.from('conversations').update({ last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversationId);
-    const orderText = `<b>🛍️ تم تأكيد طلب جديد</b>\n<b>رقم الطلب:</b> <code>${escapeHtml(order.id)}</code>\n<b>التذكرة:</b> <code>${escapeHtml(ticketCode || '—')}</code>\n<b>الهاتف:</b> ${escapeHtml(product.name)}\n<b>الزبون:</b> ${escapeHtml(payload.name)}\n<b>الهاتف للتواصل:</b> ${escapeHtml(payload.phone)}\n<b>العنوان:</b> ${escapeHtml(payload.address)}${install ? `\n<b>التقسيط:</b> ${install.months} أشهر\n<b>الدفعة الأولى:</b> ${Math.round(install.firstPayment).toLocaleString('ar-SY')} ل.س\n<b>القسط الشهري:</b> ${Math.round(install.monthly).toLocaleString('ar-SY')} ل.س` : ''}\n<b>الملاحظات:</b> ${escapeHtml(payload.notes || '—')}\n<b>السعر الإجمالي:</b> ${Math.round(totalPrice).toLocaleString('ar-SY')} ل.س\n\n<b>للرد على المحادثة:</b> <code>/reply ${escapeHtml(ticketCode || '')} نص الرد</code>`;
-    let telegramNotified = false; const adminChatId = getAdminChatId();
-    if (adminChatId) { try { await sendTelegramMessage(adminChatId, orderText); telegramNotified = true; } catch (telegramError) { console.error('Telegram order notification failed:', telegramError); } }
+    await db.from('conversations').update({ last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversationId);
+
+    const ticketForTelegram = ticketCode ?? '—';
+    const orderText = `<b>🛍️ تم تأكيد طلب جديد</b>\n<b>رقم الطلب:</b> <code>${escapeHtml(order.id)}</code>\n<b>التذكرة:</b> <code>${escapeHtml(ticketForTelegram)}</code>\n<b>الهاتف:</b> ${escapeHtml(product.name)}\n<b>الزبون:</b> ${escapeHtml(payload.name)}\n<b>الهاتف للتواصل:</b> ${escapeHtml(payload.phone)}\n<b>العنوان:</b> ${escapeHtml(payload.address)}${install ? `\n<b>التقسيط:</b> ${install.months} أشهر\n<b>الدفعة الأولى:</b> ${Math.round(install.firstPayment).toLocaleString('ar-SY')} ل.س\n<b>القسط الشهري:</b> ${Math.round(install.monthly).toLocaleString('ar-SY')} ل.س` : ''}\n<b>الملاحظات:</b> ${escapeHtml(payload.notes || '—')}\n<b>السعر الإجمالي:</b> ${Math.round(totalPrice).toLocaleString('ar-SY')} ل.س\n\n<b>للرد على المحادثة:</b> <code>/reply ${escapeHtml(ticketForTelegram)} نص الرد</code>`;
+
+    let telegramNotified = false;
+    const adminChatId = getAdminChatId();
+    if (adminChatId) {
+      try {
+        await sendTelegramMessage(adminChatId, orderText);
+        telegramNotified = true;
+      } catch (telegramError) {
+        console.error('Telegram order notification failed:', telegramError);
+      }
+    }
+
     return NextResponse.json({ ok: true, orderId: order.id, ticketId: ticketCode, telegramNotified });
-  } catch (error: any) { return NextResponse.json({ error: error?.message || 'تعذر إرسال الطلب.' }, { status: 400 }); }
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'تعذر إرسال الطلب.' }, { status: 400 });
+  }
 }
