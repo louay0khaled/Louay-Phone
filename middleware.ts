@@ -2,17 +2,16 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const response = NextResponse.next({
+  const requestHeaders = new Headers(request.headers);
+  // Overwrite the value so a client cannot spoof the route check in the
+  // parent admin layout.
+  requestHeaders.set('x-louay-pathname', request.nextUrl.pathname);
+
+  return NextResponse.next({
     request: {
-      headers: new Headers(request.headers),
+      headers: requestHeaders,
     },
   });
-
-  // Tell the parent admin layout which route is being rendered. This lets
-  // /admin/login render without an authenticated session while every other
-  // /admin route remains protected by the server layout.
-  response.headers.set('x-louay-pathname', request.nextUrl.pathname);
-  return response;
 }
 
 export const config = {
