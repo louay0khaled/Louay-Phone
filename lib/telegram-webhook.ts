@@ -6,8 +6,7 @@ type TelegramUpdate = { message?: TelegramMessage };
 
 function parseReplyCommand(text: string) {
   const match = text.match(/^\/reply(?:@\w+)?\s+(\S+)\s+([\s\S]+)$/i);
-  if (!match) return null;
-  return { ticketId: match[1], replyText: match[2].trim() };
+  return match ? { ticketId: match[1], replyText: match[2].trim() } : null;
 }
 
 function displayName(message: TelegramMessage) {
@@ -19,7 +18,10 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
   const message = update.message;
   if (!message?.text) return;
 
-  const supabase = createAdminClient();
+  // The database has evolved faster than the generated Supabase types. This handler
+  // deliberately uses the runtime admin client shape because ticket_code/visitor fields
+  // are production columns even when the generated type file is stale.
+  const supabase = createAdminClient() as any;
   const adminChatId = getAdminChatId();
   const chatId = message.chat.id;
   const fromId = message.from?.id ?? chatId;
@@ -27,7 +29,6 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
   const name = displayName(message);
   const username = message.from?.username ?? message.chat.username ?? null;
 
-  // Admin commands are internal only. Customer Telegram chats never receive website replies.
   if (adminChatId !== null && chatId === adminChatId) {
     if (text.startsWith('/reply')) {
       const parsed = parseReplyCommand(text);
@@ -36,12 +37,10 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
         return;
       }
 
-      // IMPORTANT: ticket_id shown in Telegram is conversations.ticket_code, not conversations.id.
-      // This fixes the previous lookup that incorrectly searched the UUID id column.
       const { data: conversation, error: lookupError } = await supabase
         .from('conversations')
-        .select('id, ticket_code, telegram_chat_id, customer_id, status')
-        .eq('ticket_code', parsed.ticketId)
+        .select('id,ticket_code,telegram_chat_id,customer_id,status')
+        .eq('ticket_code', parsed.ticketId.trim().toUpperCase())
         .maybeSingle();
 
       if (lookupError) throw lookupError;
@@ -50,8 +49,6 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
         return;
       }
 
-      // Store the admin response in the website conversation. The website polls this
-      // table and displays it to the visitor. Telegram is deliberately hidden from them.
       const { error: messageError } = await supabase.from('messages').insert({
         conversation_id: conversation.id,
         sender_type: 'admin',
@@ -63,8 +60,6 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
 
       await supabase.from('conversations').update({ status: 'processing', last_message_at: new Date().toISOString() }).eq('id', conversation.id);
 
-      // Only Telegram-origin conversations have a customer Telegram chat.
-      // Website-origin conversations must NOT expose Telegram to the visitor.
       if (conversation.telegram_chat_id && conversation.telegram_chat_id !== adminChatId) {
         await sendTelegramMessage(conversation.telegram_chat_id, `رد الإدارة:\n\n${escapeHtml(parsed.replyText)}`);
       }
@@ -78,7 +73,7 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
   }
 
   const { data: existingCustomer } = await supabase.from('customers').select('id').or(`telegram_user_id.eq.${fromId},telegram_chat_id.eq.${chatId}`).maybeSingle();
-  let customerId = existingCustomer?.id as string | undefined;
+  let customerId: string | undefined = existingCustomer?.id;
   if (!customerId) {
     const { data, error } = await supabase.from('customers').insert({ name, phone: '', telegram_user_id: fromId, telegram_chat_id: chatId, telegram_username: username }).select('id').single();
     if (error) throw error;
@@ -87,9 +82,9 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
     await supabase.from('customers').update({ name, telegram_user_id: fromId, telegram_chat_id: chatId, telegram_username: username }).eq('id', customerId);
   }
 
-  const { data: conversation } = await supabase.from('conversations').select('id, ticket_code').eq('telegram_chat_id', chatId).maybeSingle();
-  let conversationId = conversation?.id as string | undefined;
-  let ticketCode = conversation?.ticket_code as string | undefined;
+  const { data: conversation } = await supabase.from('conversations').select('id,ticket_code').eq('telegram_chat_id', chatId).maybeSingle();
+  let conversationId: string | undefined = conversation?.id;
+  let ticketCode: string | undefined = conversation?.ticket_code;
   if (!conversationId) {
     const { data, error } = await supabase.from('conversations').insert({ customer_id: customerId, telegram_chat_id: chatId, status: 'open', last_message_at: new Date().toISOString() }).select('id,ticket_code').single();
     if (error) throw error;
@@ -99,11 +94,13 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
     await supabase.from('conversations').update({ last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversationId);
   }
 
+  if (!conversationId) throw new Error('Telegram conversation could not be created');
   const { error: messageError } = await supabase.from('messages').insert({ conversation_id: conversationId, sender_type: 'user', message_text: text, telegram_message_id: message.message_id, is_read: false });
   if (messageError) throw messageError;
 
+  const safeTicket = ticketCode ?? conversationId;
   if (adminChatId !== null) {
-    await sendTelegramMessage(adminChatId, ['<b>📩 رسالة جديدة من Telegram</b>', `<b>التذكرة:</b> <code>${escapeHtml(ticketCode ?? conversationId)}</code>`, `<b>الاسم:</b> ${escapeHtml(name)}`, `<b>المعرف:</b> ${escapeHtml(username ?? '—')}`, '<b>الرسالة:</b>', escapeHtml(text), '', `<b>للرد:</b> <code>/reply ${escapeHtml(ticketCode ?? conversationId)} نص الرد</code>`].join('\n'));
+    await sendTelegramMessage(adminChatId, ['<b>📩 رسالة جديدة من Telegram</b>', `<b>التذكرة:</b> <code>${escapeHtml(safeTicket)}</code>`, `<b>الاسم:</b> ${escapeHtml(name)}`, `<b>المعرف:</b> ${escapeHtml(username ?? '—')}`, '<b>الرسالة:</b>', escapeHtml(text), '', `<b>للرد:</b> <code>/reply ${escapeHtml(safeTicket)} نص الرد</code>`].join('\n'));
   }
 
   await sendTelegramMessage(chatId, text === '/start' ? 'أهلًا بك في Louay Phone. أرسل استفسارك أو اسم الهاتف الذي تريده، وسيتواصل معك فريقنا مباشرة.' : 'تم استلام رسالتك، وسيتم الرد عليك من الإدارة قريبًا.');
