@@ -1,0 +1,32 @@
+import { notFound } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import Link from 'next/link';
+import OrderForm from '@/components/store/OrderForm';
+
+export default async function ProductDetails({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug);
+  const supabase = await createClient();
+  const { data: rawProduct, error } = await supabase
+    .from('products')
+    .select('id,name,slug,model,description,price_usd,price_syp,stock_status,installment_enabled,specs,brands(name),product_images(id,url,alt_text,is_primary,position),installment_plans(id,months,first_payment_type,first_payment_value,total_price,monthly_amount,is_active)')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (error) console.error('Product details lookup failed:', error);
+  const p = rawProduct as any;
+  if (!p) notFound();
+
+  const images = [...(p.product_images ?? [])].sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+  const plans = (p.installment_plans ?? []).filter((x: any) => x.is_active);
+  const specs = (p.specs ?? {}) as Record<string, unknown>;
+
+  return <main dir="rtl" className="min-h-screen bg-white text-slate-950 dark:bg-slate-950 dark:text-white">
+    <header className="border-b border-slate-200 dark:border-white/10"><div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5"><Link href="/products" className="font-black text-xl">Louay <span className="text-sky-500">Phone</span></Link><Link href="/products" className="text-sm text-slate-500">الهواتف</Link></div></header>
+    <section className="mx-auto grid max-w-7xl gap-10 px-5 py-10 lg:grid-cols-2">
+      <div className="space-y-4"><div className="aspect-square overflow-hidden rounded-[2rem] bg-slate-100 dark:bg-slate-900">{images[0]?.url ? <img src={images[0].url} alt={images[0].alt_text ?? p.name} className="h-full w-full object-contain p-8" /> : <div className="flex h-full items-center justify-center text-slate-400">لا توجد صورة</div>}</div><div className="grid grid-cols-5 gap-3">{images.slice(0, 5).map((i: any) => <div key={i.id} className="aspect-square overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-slate-900"><img src={i.url} alt={i.alt_text ?? p.name} className="h-full w-full object-contain p-2" /></div>)}</div></div>
+      <div className="pt-2"><p className="font-bold text-sky-500">{p.brands?.name ?? 'Louay Phone'}</p><h1 className="mt-2 text-4xl font-black tracking-tight">{p.name}</h1>{p.model && <p className="mt-2 text-slate-500">{p.model}</p>}<div className="mt-7"><b className="text-3xl">{p.price_syp ? Number(p.price_syp).toLocaleString('ar-SY') + ' ل.س' : 'السعر عند الطلب'}</b>{p.price_usd && <p className="mt-1 text-sm text-slate-500">${Number(p.price_usd).toLocaleString()}</p>}</div>{p.description && <p className="mt-7 whitespace-pre-line leading-8 text-slate-600 dark:text-slate-300">{p.description}</p>}<div className="mt-8 rounded-3xl border border-slate-200 p-5 dark:border-white/10"><h2 className="font-black">المواصفات</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{Object.entries(specs).map(([k, v]) => <div key={k} className="rounded-xl bg-slate-50 p-3 dark:bg-white/[.04]"><span className="text-xs text-slate-500">{k}</span><p className="mt-1 font-bold">{String(v)}</p></div>)}</div></div><OrderForm product={p} plans={plans} /></div>
+    </section>
+  </main>;
+}
