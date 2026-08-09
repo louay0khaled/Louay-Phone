@@ -6,7 +6,7 @@ import { ArrowRight, Calculator, Trash2, RefreshCw } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 type Product = { id: string; name: string; price_syp: number | null; price_usd: number | null; installment_enabled: boolean };
-type Plan = { id: string; product_id: string; months: number; first_payment_type: 'fixed' | 'percentage'; first_payment_value: number; total_price: number | null; monthly_amount: number | null; is_active: boolean };
+type Plan = { id: string; product_id: string; months: number; first_payment_type: 'fixed' | 'percentage'; first_payment_value: number; total_price: number | null; monthly_amount: number | null; is_active: boolean; created_at?: string; updated_at?: string };
 
 export default function InstallmentsAdminPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -22,7 +22,9 @@ export default function InstallmentsAdminPage() {
       supabase.from('installment_plans').select('*').order('months'),
     ]);
     if (pe || ple) setError(pe?.message || ple?.message || 'تعذر تحميل خطط التقسيط.');
-    setProducts(ps || []); setPlans(pls || []); setLoading(false);
+    setProducts(ps || []);
+    setPlans((pls || []) as Plan[]);
+    setLoading(false);
   }
 
   useEffect(() => { load(); }, []);
