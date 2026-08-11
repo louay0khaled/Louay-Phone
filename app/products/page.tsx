@@ -1,8 +1,111 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 
+function slugify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 export default async function ProductsPage() {
   const supabase = await createClient();
-  const { data: products } = await supabase.from('products').select('id,name,slug,price_usd,price_syp,stock_status,installment_enabled,is_featured,product_images(id,url,is_primary,position),brands(name)').eq('is_active',true).order('is_featured',{ascending:false}).order('created_at',{ascending:false});
-  return <main dir="rtl" className="min-h-screen bg-white text-slate-950 dark:bg-slate-950 dark:text-white"><header className="border-b border-slate-200/70 dark:border-white/10"><div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5"><Link href="/" className="text-2xl font-black tracking-tight">Louay <span className="text-sky-500">Phone</span></Link><Link href="/" className="text-sm text-slate-500 hover:text-sky-500">الرئيسية</Link></div></header><section className="mx-auto max-w-7xl px-5 py-12"><div className="mb-10"><p className="text-sm font-bold text-sky-500">Louay Phone</p><h1 className="mt-2 text-4xl font-black">الهواتف</h1><p className="mt-3 text-slate-500 dark:text-slate-400">اختَر هاتفك واستعرض المواصفات والصور وخطط التقسيط المتاحة.</p></div><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{(products??[]).map((p:any)=>{const images=[...(p.product_images??[])].sort((a:any,b:any)=>(a.position??0)-(b.position??0));const img=images.find((x:any)=>x.is_primary)??images[0];return <Link href={`/product/${p.slug}`} key={p.id} className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-white/[.04]"><div className="aspect-square bg-slate-100 dark:bg-slate-900">{img?.url?<img src={img.url} alt={p.name} className="h-full w-full object-contain p-6 transition duration-500 group-hover:scale-105"/>:<div className="flex h-full items-center justify-center text-slate-400">لا توجد صورة</div>}</div><div className="p-5"><p className="text-xs font-bold text-sky-500">{p.brands?.name??'Louay Phone'}</p><h2 className="mt-1 font-black">{p.name}</h2><div className="mt-4 flex items-end justify-between gap-3"><div><b className="text-lg">{p.price_syp?Number(p.price_syp).toLocaleString('ar-SY')+' ل.س':'السعر عند الطلب'}</b>{p.price_usd&&<p className="text-xs text-slate-500">${Number(p.price_usd).toLocaleString()}</p>}</div>{p.installment_enabled&&<span className="rounded-full bg-sky-500/10 px-2.5 py-1 text-xs font-bold text-sky-600">تقسيط</span>}</div></div></Link>})}</div>{!products?.length&&<div className="rounded-3xl border border-dashed border-slate-300 p-16 text-center text-slate-500">لا توجد هواتف منشورة حاليًا.</div>}</section></main>;
+  const { data: products } = await supabase
+    .from('products')
+    .select('id,name,slug,model,price_usd,price_syp,stock_status,installment_enabled,is_featured,specs,product_images(id,url,is_primary,position),brands(name,slug)')
+    .eq('is_active', true)
+    .order('is_featured', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  const groups = new Map<string, { name: string; slug: string; products: any[] }>();
+  for (const product of products ?? []) {
+    const brandName = product.brands?.name ?? 'أخرى';
+    const brandSlug = product.brands?.slug ?? slugify(brandName);
+    if (!groups.has(brandName)) groups.set(brandName, { name: brandName, slug: brandSlug, products: [] });
+    groups.get(brandName)!.products.push(product);
+  }
+
+  const brandGroups = [...groups.values()];
+
+  return (
+    <main dir="rtl" className="min-h-screen bg-[#020617] text-white luxury-grid">
+      <header className="sticky top-0 z-40 border-b border-sky-300/10 bg-slate-950/85 backdrop-blur-2xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <Link href="/" className="text-2xl font-black tracking-tight">Louay <span className="text-sky-400">Phone</span></Link>
+          <Link href="/" className="luxury-button-secondary !min-h-10 !rounded-xl !px-4 !py-2 text-sm">الرئيسية</Link>
+        </div>
+      </header>
+
+      <section className="mx-auto max-w-7xl px-4 pb-16 pt-10 sm:px-6 lg:px-8">
+        <div className="mb-8 max-w-3xl">
+          <span className="luxury-badge">CATALOG</span>
+          <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">كتالوج Louay Phone</h1>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">اختر الشركة من التبويبات للوصول مباشرة إلى هواتفها، مع الأسعار الحالية والمواصفات الأساسية.</p>
+        </div>
+
+        <nav className="sticky top-[73px] z-30 -mx-1 mb-12 overflow-x-auto rounded-2xl border border-sky-300/10 bg-slate-950/80 p-2 backdrop-blur-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="الشركات">
+          <div className="flex min-w-max gap-2">
+            {brandGroups.map((brand) => (
+              <a key={brand.slug} href={`#brand-${brand.slug}`} className="rounded-xl border border-transparent bg-white/[.03] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:border-sky-300/20 hover:bg-sky-400/10 hover:text-sky-200">
+                {brand.name}
+                <span className="mr-2 text-xs text-slate-500">{brand.products.length}</span>
+              </a>
+            ))}
+          </div>
+        </nav>
+
+        <div className="space-y-14">
+          {brandGroups.map((brand) => (
+            <section key={brand.slug} id={`brand-${brand.slug}`} className="scroll-mt-32">
+              <div className="mb-6 flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black tracking-[.2em] text-sky-400">{String(brand.name).toUpperCase()}</p>
+                  <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">{brand.name}</h2>
+                </div>
+                <span className="hidden rounded-full border border-sky-300/10 bg-sky-400/5 px-3 py-1.5 text-xs font-bold text-sky-200 sm:inline-flex">{brand.products.length} منتج</span>
+              </div>
+
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {brand.products.map((p: any) => {
+                  const images = [...(p.product_images ?? [])].sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+                  const img = images.find((x: any) => x.is_primary) ?? images[0];
+                  const note = p.specs?.notes;
+                  return (
+                    <Link href={`/product/${p.slug}`} key={p.id} className="group luxury-card overflow-hidden">
+                      <div className="relative aspect-square overflow-hidden bg-[radial-gradient(circle_at_50%_35%,rgba(56,189,248,.10),transparent_48%),linear-gradient(145deg,#0b1424,#020617)]">
+                        {img?.url ? (
+                          <img src={img.url} alt={p.name} className="h-full w-full object-contain p-7 transition duration-700 ease-out group-hover:scale-105" />
+                        ) : (
+                          <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-slate-500">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-sky-300/10 bg-sky-400/5 text-2xl text-sky-300">✦</div>
+                            <span className="text-xs font-bold">الصورة ستُضاف لاحقًا</span>
+                          </div>
+                        )}
+                        {p.installment_enabled && <span className="luxury-badge absolute right-4 top-4">تقسيط</span>}
+                      </div>
+                      <div className="p-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-[11px] font-extrabold uppercase tracking-[.14em] text-sky-400">{brand.name}</p>
+                          {p.stock_status === 'in_stock' && <span className="text-[10px] font-bold text-emerald-300">متوفر</span>}
+                        </div>
+                        <h3 className="mt-2 text-lg font-extrabold tracking-tight text-white">{p.name}</h3>
+                        {p.model && p.model !== '-' && <p className="mt-1 text-xs text-slate-500">{p.model}{note ? ` • ${note}` : ''}</p>}
+                        <div className="luxury-divider my-4" />
+                        <div className="flex items-end justify-between gap-3">
+                          <div>
+                            <b className="text-base text-white">{p.price_syp ? `${Number(p.price_syp).toLocaleString('ar-SY')} ل.س` : 'السعر عند الطلب'}</b>
+                            {p.price_usd && <p className="mt-1 text-xs text-slate-500">${Number(p.price_usd).toLocaleString()}</p>}
+                          </div>
+                          <span className="text-xs font-bold text-slate-500 transition group-hover:text-sky-300">التفاصيل ←</span>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+
+        {!brandGroups.length && <div className="luxury-surface rounded-3xl p-16 text-center text-slate-400">لا توجد هواتف منشورة حاليًا.</div>}
+      </section>
+    </main>
+  );
 }
