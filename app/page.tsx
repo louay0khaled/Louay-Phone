@@ -50,7 +50,7 @@ export default async function Home() {
   const assets = await getSiteAssets();
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#020617] text-white luxury-grid">
+    <main data-storefront="true" className="storefront-home min-h-screen overflow-hidden bg-[#020617] text-white luxury-grid">
       <header className="sticky top-0 z-30 border-b border-sky-300/10 bg-[#020617]/75 backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-3">
