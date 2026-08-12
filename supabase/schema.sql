@@ -39,7 +39,8 @@ create table if not exists orders (
 
 create table if not exists conversations (
   id uuid primary key default gen_random_uuid(), customer_id uuid references customers(id) on delete cascade,
-  telegram_chat_id bigint not null, status text not null default 'open' check (status in ('open','processing','closed')),
+  telegram_chat_id bigint, visitor_token text, ticket_code text, visitor_name text,
+  status text not null default 'open' check (status in ('open','processing','closed')),
   last_message_at timestamptz not null default now(), assigned_to uuid, created_at timestamptz not null default now()
 );
 
@@ -59,6 +60,14 @@ create table if not exists settings (
   id uuid primary key default gen_random_uuid(), key text not null unique, value jsonb not null default '{}'::jsonb, updated_at timestamptz not null default now()
 );
 
+create table if not exists site_assets (
+  key text primary key,
+  url text not null,
+  version bigint not null default 0,
+  mime_type text not null,
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists audit_logs (
   id uuid primary key default gen_random_uuid(), admin_id uuid, action text not null, entity text not null, entity_id uuid, metadata jsonb,
   created_at timestamptz not null default now()
@@ -71,7 +80,7 @@ create index if not exists products_brand_idx on products(brand_id);
 create index if not exists products_active_idx on products(is_active);
 create index if not exists orders_status_idx on orders(status);
 create index if not exists messages_conversation_idx on messages(conversation_id, created_at);
+create unique index if not exists site_assets_key_idx on site_assets(key);
 
--- Product image storage is provisioned separately in Supabase, but these policies
--- document the intended security model for a reproducible deployment.
--- Bucket: product-images, public read, authenticated active admins write/delete.
+-- Storage buckets: product-images and site-assets are provisioned in Supabase.
+-- Both are public-read. Writes for site-assets are performed server-side only after admin authentication.
