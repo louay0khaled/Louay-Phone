@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 function fontFormat(url: string) {
-  return url.toLowerCase().includes('.otf') ? 'opentype' : 'truetype';
+  return url.toLowerCase().split('?')[0].endsWith('.otf') ? 'opentype' : 'truetype';
 }
 
 const criticalStorefrontCss = `
@@ -65,11 +65,16 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const assets = await getSiteAssets();
   const regular = assets.fontRegular?.url;
   const bold = assets.fontBold?.url;
-  const fontCss = [
-    regular ? `@font-face{font-family:'LouayCustom';src:url('${regular}') format('${fontFormat(regular)}');font-style:normal;font-weight:400 600;font-display:swap}` : '',
-    bold ? `@font-face{font-family:'LouayCustom';src:url('${bold}') format('${fontFormat(bold)}');font-style:normal;font-weight:700 900;font-display:swap}` : '',
-    regular || bold ? `:root{--site-font:'LouayCustom',Arial,Tahoma,sans-serif}body,button,input,textarea,select{font-family:var(--site-font)}` : '',
-  ].join('');
+  const regularUrl = regular ? `${regular}${regular.includes('?') ? '&' : '?'}v=${assets.fontRegular?.version ?? Date.now()}` : '';
+  const boldUrl = bold ? `${bold}${bold.includes('?') ? '&' : '?'}v=${assets.fontBold?.version ?? Date.now()}` : '';
+  const fontCss = regular || bold ? `
+@font-face{font-family:'LouayCustom';src:url('${regularUrl || boldUrl}') format('${fontFormat(regularUrl || boldUrl)}');font-style:normal;font-weight:400 600;font-display:swap}
+${boldUrl ? `@font-face{font-family:'LouayCustom';src:url('${boldUrl}') format('${fontFormat(boldUrl)}');font-style:normal;font-weight:700 900;font-display:swap}` : ''}
+:root{--site-font:'LouayCustom',Arial,Tahoma,sans-serif}
+html,body,body *{font-family:var(--site-font)!important}
+button,input,textarea,select,optgroup,option{font-family:var(--site-font)!important}
+::placeholder{font-family:var(--site-font)!important}
+` : '';
 
-  return <html lang="ar" dir="rtl"><head>{fontCss && <style dangerouslySetInnerHTML={{ __html: fontCss }} />}<style id="storefront-critical" dangerouslySetInnerHTML={{ __html: criticalStorefrontCss }} /><link rel="stylesheet" href="/storefront-fallback.css?v=4" /></head><body>{children}<ChatWidget /></body></html>;
+  return <html lang="ar" dir="rtl"><head>{fontCss && <style id="site-fonts" dangerouslySetInnerHTML={{ __html: fontCss }} />}<style id="storefront-critical" dangerouslySetInnerHTML={{ __html: criticalStorefrontCss }} /><link rel="stylesheet" href="/storefront-fallback.css?v=5" /></head><body>{children}<ChatWidget /></body></html>;
 }
