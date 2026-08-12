@@ -13,16 +13,14 @@ export default async function ProductsPage() {
     supabase.from('brands').select('id,name,slug').order('name'),
     supabase.from('settings').select('value').eq('key', 'exchange_rate').maybeSingle(),
   ]);
-
   const products = rawProducts ?? [];
   const brandsById = new Map((rawBrands ?? []).map((brand: any) => [brand.id, brand]));
   const groups = new Map<string, { name: string; slug: string; products: any[] }>();
   for (const raw of products as any[]) { const brand = brandsById.get(raw.brand_id) ?? { name: 'أخرى', slug: 'other' }; if (!groups.has(brand.name)) groups.set(brand.name, { name: brand.name, slug: brand.slug || slugify(brand.name), products: [] }); groups.get(brand.name)!.products.push({ ...raw, brand }); }
   const brandGroups = [...groups.values()];
   const tabBrands = brandGroups.map((brand) => ({ name: brand.name, slug: brand.slug, count: brand.products.length }));
-
   return (
-    <main dir="rtl" className="min-h-screen overflow-x-clip bg-[#020617] text-white luxury-grid">
+    <main data-storefront="true" className="storefront-catalog min-h-screen overflow-x-clip bg-[#020617] text-white luxury-grid">
       <StoreHeader />
       <section className="mx-auto max-w-7xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
         <div className="reveal-up mb-9 max-w-3xl"><div className="luxury-badge"><span className="h-1.5 w-1.5 rounded-full bg-sky-300 shadow-[0_0_10px_rgba(56,189,248,.9)]" /> CATALOG</div><h1 className="mt-5 text-[2.5rem] font-black tracking-[-.04em] sm:text-5xl">كتالوج Louay Phone</h1><p className="mt-4 max-w-2xl text-sm leading-8 text-slate-400 sm:text-base">استكشف العلامات التجارية والموديلات ضمن تجربة أقرب لتطبيق متجر عالمي: سريعة، مرنة، ومريحة على الهاتف.</p></div>
