@@ -11,13 +11,17 @@ export const metadata: Metadata = {
   description: 'Louay Phone — متجر إلكتروني احترافي للهواتف الذكية.',
 };
 
+function fontFormat(url: string) {
+  return url.toLowerCase().includes('.otf') ? 'opentype' : 'truetype';
+}
+
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const assets = await getSiteAssets();
   const regular = assets.fontRegular?.url;
   const bold = assets.fontBold?.url;
   const fontCss = [
-    regular ? `@font-face{font-family:'LouayCustom';src:url('${regular}') format('truetype');font-style:normal;font-weight:400 600;font-display:swap}` : '',
-    bold ? `@font-face{font-family:'LouayCustom';src:url('${bold}') format('truetype');font-style:normal;font-weight:700 900;font-display:swap}` : '',
+    regular ? `@font-face{font-family:'LouayCustom';src:url('${regular}') format('${fontFormat(regular)}');font-style:normal;font-weight:400 600;font-display:swap}` : '',
+    bold ? `@font-face{font-family:'LouayCustom';src:url('${bold}') format('${fontFormat(bold)}');font-style:normal;font-weight:700 900;font-display:swap}` : '',
     regular || bold ? `:root{--site-font:'LouayCustom','Cairo',sans-serif}body,button,input,textarea,select{font-family:var(--site-font)}` : '',
   ].join('');
 
