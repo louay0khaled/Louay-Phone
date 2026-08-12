@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import './globals.css';
+import './site.css';
 import ChatWidget from '@/components/store/ChatWidget';
 import { getSiteAssets } from '@/lib/site-config';
 
@@ -22,7 +22,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const fontCss = [
     regular ? `@font-face{font-family:'LouayCustom';src:url('${regular}') format('${fontFormat(regular)}');font-style:normal;font-weight:400 600;font-display:swap}` : '',
     bold ? `@font-face{font-family:'LouayCustom';src:url('${bold}') format('${fontFormat(bold)}');font-style:normal;font-weight:700 900;font-display:swap}` : '',
-    regular || bold ? `:root{--site-font:'LouayCustom','Cairo',sans-serif}body,button,input,textarea,select{font-family:var(--site-font)}` : '',
+    regular || bold ? `:root{--site-font:'LouayCustom',Arial,Tahoma,sans-serif}body,button,input,textarea,select{font-family:var(--site-font)}` : '',
   ].join('');
 
   return <html lang="ar" dir="rtl"><head>{fontCss && <style dangerouslySetInnerHTML={{ __html: fontCss }} />}</head><body>{children}<ChatWidget /></body></html>;
