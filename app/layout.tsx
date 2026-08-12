@@ -63,18 +63,19 @@ const criticalStorefrontCss = `
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const assets = await getSiteAssets();
-  const regular = assets.fontRegular?.url;
-  const bold = assets.fontBold?.url;
-  const regularUrl = regular ? `${regular}${regular.includes('?') ? '&' : '?'}v=${assets.fontRegular?.version ?? Date.now()}` : '';
-  const boldUrl = bold ? `${bold}${bold.includes('?') ? '&' : '?'}v=${assets.fontBold?.version ?? Date.now()}` : '';
-  const fontCss = regular || bold ? `
-@font-face{font-family:'LouayCustom';src:url('${regularUrl || boldUrl}') format('${fontFormat(regularUrl || boldUrl)}');font-style:normal;font-weight:400 600;font-display:swap}
-${boldUrl ? `@font-face{font-family:'LouayCustom';src:url('${boldUrl}') format('${fontFormat(boldUrl)}');font-style:normal;font-weight:700 900;font-display:swap}` : ''}
+  const regular = assets.fontRegular;
+  const bold = assets.fontBold;
+  const regularSrc = regular ? `/api/site-font?weight=regular&v=${regular.version}` : '';
+  const boldSrc = bold ? `/api/site-font?weight=bold&v=${bold.version}` : '';
+  const fallbackSrc = regularSrc || boldSrc;
+  const fontCss = fallbackSrc ? `
+@font-face{font-family:'LouayCustom';src:url('${fallbackSrc}') format('${fontFormat(regular?.url || bold?.url || '')}');font-style:normal;font-weight:400 600;font-display:swap}
+${boldSrc ? `@font-face{font-family:'LouayCustom';src:url('${boldSrc}') format('${fontFormat(bold?.url || '')}');font-style:normal;font-weight:700 900;font-display:swap}` : ''}
 :root{--site-font:'LouayCustom',Arial,Tahoma,sans-serif}
 html,body,body *{font-family:var(--site-font)!important}
 button,input,textarea,select,optgroup,option{font-family:var(--site-font)!important}
 ::placeholder{font-family:var(--site-font)!important}
 ` : '';
 
-  return <html lang="ar" dir="rtl"><head>{fontCss && <style id="site-fonts" dangerouslySetInnerHTML={{ __html: fontCss }} />}<style id="storefront-critical" dangerouslySetInnerHTML={{ __html: criticalStorefrontCss }} /><link rel="stylesheet" href="/storefront-fallback.css?v=5" /></head><body>{children}<ChatWidget /></body></html>;
+  return <html lang="ar" dir="rtl"><head>{fontCss && <style id="site-fonts" dangerouslySetInnerHTML={{ __html: fontCss }} />}<style id="storefront-critical" dangerouslySetInnerHTML={{ __html: criticalStorefrontCss }} /><link rel="stylesheet" href="/storefront-fallback.css?v=6" /></head><body>{children}<ChatWidget /></body></html>;
 }
