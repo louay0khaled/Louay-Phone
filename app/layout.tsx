@@ -25,5 +25,5 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     regular || bold ? `:root{--site-font:'LouayCustom',Arial,Tahoma,sans-serif}body,button,input,textarea,select{font-family:var(--site-font)}` : '',
   ].join('');
 
-  return <html lang="ar" dir="rtl"><head>{fontCss && <style dangerouslySetInnerHTML={{ __html: fontCss }} />}</head><body>{children}<ChatWidget /></body></html>;
+  return <html lang="ar" dir="rtl"><head>{fontCss && <style dangerouslySetInnerHTML={{ __html: fontCss }} />}<link rel="stylesheet" href="/storefront-fallback.css?v=3" /></head><body>{children}<ChatWidget /></body></html>;
 }
