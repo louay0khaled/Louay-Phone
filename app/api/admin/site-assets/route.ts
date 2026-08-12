@@ -6,17 +6,21 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const ASSET_RULES = {
-  logo: { maxBytes: 5 * 1024 * 1024, mimes: ['image/png', 'image/jpeg'], prefix: 'branding/logo' },
-  hero: { maxBytes: 10 * 1024 * 1024, mimes: ['image/png', 'image/jpeg'], prefix: 'branding/hero' },
-  fontRegular: { maxBytes: 8 * 1024 * 1024, mimes: ['font/ttf', 'font/otf', 'application/x-font-ttf', 'application/x-font-opentype', 'application/octet-stream'], prefix: 'fonts/regular' },
-  fontBold: { maxBytes: 8 * 1024 * 1024, mimes: ['font/ttf', 'font/otf', 'application/x-font-ttf', 'application/x-font-opentype', 'application/octet-stream'], prefix: 'fonts/bold' },
+  logo: { maxBytes: 5 * 1024 * 1024, mimes: ['image/png', 'image/jpeg'], extensions: ['png', 'jpg', 'jpeg'], prefix: 'branding/logo' },
+  hero: { maxBytes: 10 * 1024 * 1024, mimes: ['image/png', 'image/jpeg'], extensions: ['png', 'jpg', 'jpeg'], prefix: 'branding/hero' },
+  fontRegular: { maxBytes: 8 * 1024 * 1024, mimes: ['font/ttf', 'font/otf', 'application/x-font-ttf', 'application/x-font-opentype', 'application/octet-stream'], extensions: ['ttf', 'otf'], prefix: 'fonts/regular' },
+  fontBold: { maxBytes: 8 * 1024 * 1024, mimes: ['font/ttf', 'font/otf', 'application/x-font-ttf', 'application/x-font-opentype', 'application/octet-stream'], extensions: ['ttf', 'otf'], prefix: 'fonts/bold' },
 } as const;
 
 type AssetKey = keyof typeof ASSET_RULES;
 
-function extFor(file: File) {
+function getExtension(file: File) {
   const clean = file.name.split('?')[0].split('#')[0];
-  const ext = clean.includes('.') ? clean.split('.').pop()?.toLowerCase() : '';
+  return clean.includes('.') ? clean.split('.').pop()?.toLowerCase() ?? '' : '';
+}
+
+function extFor(file: File) {
+  const ext = getExtension(file);
   if (ext === 'jpeg') return 'jpg';
   if (ext === 'ttf' || ext === 'otf' || ext === 'png' || ext === 'jpg') return ext;
   if (file.type === 'image/png') return 'png';
@@ -28,7 +32,7 @@ function extFor(file: File) {
 function decodePathFromUrl(url: string) {
   const marker = '/storage/v1/object/public/site-assets/';
   const idx = url.indexOf(marker);
-  return idx >= 0 ? decodeURIComponent(url.slice(idx + marker.length)) : null;
+  return idx >= 0 ? decodeURIComponent(url.slice(idx + marker.length).split('?')[0]) : null;
 }
 
 async function assertAdmin() {
@@ -52,8 +56,13 @@ export async function POST(request: Request) {
     if (!rule || !(file instanceof File)) {
       return NextResponse.json({ error: 'ملف أو نوع رفع غير صالح.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
     }
-    if (!rule.mimes.includes(file.type as never)) {
-      return NextResponse.json({ error: key.startsWith('font') ? 'الخط يجب أن يكون TTF أو OTF.' : 'الصورة يجب أن تكون PNG أو JPG.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+
+    const extension = getExtension(file);
+    if (!rule.extensions.includes(extension as never)) {
+      return NextResponse.json({ error: key.startsWith('font') ? 'الخط يجب أن يكون بامتداد TTF أو OTF.' : 'الصورة يجب أن تكون بامتداد PNG أو JPG.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    }
+    if (!rule.mimes.includes(file.type as never) && !(key.startsWith('font') && file.type === 'application/octet-stream')) {
+      return NextResponse.json({ error: key.startsWith('font') ? 'ملف الخط غير صالح.' : 'ملف الصورة غير صالح.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
     }
     if (file.size > rule.maxBytes) {
       return NextResponse.json({ error: 'حجم الملف أكبر من الحد المسموح.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
@@ -64,12 +73,12 @@ export async function POST(request: Request) {
     const version = Date.now();
     const path = `${rule.prefix}/${version}-${crypto.randomUUID()}.${extFor(file)}`;
     const bytes = Buffer.from(await file.arrayBuffer());
-    const { error: uploadError } = await admin.storage.from('site-assets').upload(path, bytes, { contentType: file.type, cacheControl: '0', upsert: false });
+    const { error: uploadError } = await admin.storage.from('site-assets').upload(path, bytes, { contentType: file.type || (extFor(file) === 'otf' ? 'font/otf' : 'font/ttf'), cacheControl: '0', upsert: false });
     if (uploadError) throw uploadError;
 
     const { data: publicUrlData } = admin.storage.from('site-assets').getPublicUrl(path);
     const url = `${publicUrlData.publicUrl}?v=${version}`;
-    const { error: saveError } = await admin.from('site_assets').upsert({ key, url, version, mime_type: file.type, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    const { error: saveError } = await admin.from('site_assets').upsert({ key, url, version, mime_type: file.type || 'application/octet-stream', updated_at: new Date().toISOString() }, { onConflict: 'key' });
     if (saveError) {
       await admin.storage.from('site-assets').remove([path]);
       throw saveError;
