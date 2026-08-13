@@ -9,8 +9,10 @@ export default async function ProductsPage() {
     supabase.from('brands').select('id,name,slug').order('name'),
   ]);
   const counts = new Map<string, number>();
-  for (const product of products ?? []) counts.set(product.brand_id, (counts.get(product.brand_id) ?? 0) + 1);
-  const brandList = (brands ?? []).filter((brand: any) => (counts.get(brand.id) ?? 0) > 0);
+  for (const product of products ?? []) {
+    if (product.brand_id) counts.set(product.brand_id, (counts.get(product.brand_id) ?? 0) + 1);
+  }
+  const brandList = (brands ?? []).filter((brand: any) => Boolean(brand.id) && Boolean(brand.slug) && (counts.get(brand.id) ?? 0) > 0);
 
   return <main data-storefront="true" className="storefront-catalog min-h-screen overflow-x-clip bg-[#020617] text-white luxury-grid">
     <StoreHeader />
