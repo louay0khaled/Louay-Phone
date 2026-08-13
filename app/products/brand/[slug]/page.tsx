@@ -61,7 +61,7 @@ export default async function BrandPage({ params, searchParams }: { params: Prom
     <StoreHeader />
     <section className="mx-auto max-w-7xl px-4 pb-20 pt-8 sm:px-6 lg:px-8">
       <div className="mb-7 flex flex-wrap items-end justify-between gap-5">
-        <div><Link href="/products" className="text-xs font-bold text-sky-300 transition hover:text-sky-200">← كل الماركات</Link><div className="luxury-badge mt-4">{brand.name}</div><h1 className="mt-3 text-[2.35rem] font-black tracking-[-.04em] sm:text-5xl">هواتف {brand.name}</h1><p className="mt-3 text-sm leading-7 text-slate-400">مجموعة {brand.name} ضمن كتالوج Louay Phone — 9 منتجات في كل صفحة.</p></div>
+        <div><Link href="/products" className="text-xs font-bold text-sky-300 transition hover:text-sky-200">← الماركات</Link><h1 className="mt-5 text-[2.35rem] font-black tracking-[-.04em] sm:text-5xl">{brand.name}</h1></div>
         <span className="luxury-badge">{count ?? 0} منتج</span>
       </div>
       {(products ?? []).length ? <div className="catalog-products-grid">{(products ?? []).map((product: any) => <ProductCard key={product.id} product={product} brand={brand} rate={rateRow?.value} />)}</div> : <div className="luxury-surface rounded-3xl p-14 text-center text-slate-400">لا توجد هواتف منشورة لهذه الماركة حاليًا.</div>}
