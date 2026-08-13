@@ -49,36 +49,49 @@ export async function POST(request: Request) {
 
   try {
     const form = await request.formData();
-    const key = String(form.get('key') || '') as AssetKey;
+    const keyValue = String(form.get('key') || '');
     const file = form.get('file');
-    const rule = ASSET_RULES[key];
+    const isBrandAsset = keyValue.startsWith('brand:');
+    const brandId = isBrandAsset ? keyValue.slice('brand:'.length) : '';
+    const rule = isBrandAsset
+      ? { maxBytes: 5 * 1024 * 1024, mimes: ['image/png', 'image/jpeg'], extensions: ['png', 'jpg', 'jpeg'], prefix: `branding/brands/${brandId}` }
+      : ASSET_RULES[keyValue as AssetKey];
 
     if (!rule || !(file instanceof File)) {
       return NextResponse.json({ error: 'ملف أو نوع رفع غير صالح.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
     }
 
+    if (isBrandAsset && !/^[0-9a-f-]{36}$/i.test(brandId)) {
+      return NextResponse.json({ error: 'الماركة غير صالحة.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    }
+
     const extension = getExtension(file);
     if (!rule.extensions.includes(extension as never)) {
-      return NextResponse.json({ error: key.startsWith('font') ? 'الخط يجب أن يكون بامتداد TTF أو OTF.' : 'الصورة يجب أن تكون بامتداد PNG أو JPG.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+      return NextResponse.json({ error: isBrandAsset || !keyValue.startsWith('font') ? 'الصورة يجب أن تكون بامتداد PNG أو JPG.' : 'الخط يجب أن يكون بامتداد TTF أو OTF.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
     }
-    if (!rule.mimes.includes(file.type as never) && !(key.startsWith('font') && file.type === 'application/octet-stream')) {
-      return NextResponse.json({ error: key.startsWith('font') ? 'ملف الخط غير صالح.' : 'ملف الصورة غير صالح.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    if (!rule.mimes.includes(file.type as never) && !(keyValue.startsWith('font') && file.type === 'application/octet-stream')) {
+      return NextResponse.json({ error: keyValue.startsWith('font') ? 'ملف الخط غير صالح.' : 'ملف الصورة غير صالح.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
     }
     if (file.size > rule.maxBytes) {
       return NextResponse.json({ error: 'حجم الملف أكبر من الحد المسموح.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
     }
 
     const admin = createAdminClient() as any;
-    const { data: old } = await admin.from('site_assets').select('url').eq('key', key).maybeSingle();
+    if (isBrandAsset) {
+      const { data: brand } = await admin.from('brands').select('id').eq('id', brandId).maybeSingle();
+      if (!brand) return NextResponse.json({ error: 'الماركة غير موجودة.' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
+    }
+
+    const { data: old } = await admin.from('site_assets').select('url').eq('key', keyValue).maybeSingle();
     const version = Date.now();
     const path = `${rule.prefix}/${version}-${crypto.randomUUID()}.${extFor(file)}`;
     const bytes = Buffer.from(await file.arrayBuffer());
-    const { error: uploadError } = await admin.storage.from('site-assets').upload(path, bytes, { contentType: file.type || (extFor(file) === 'otf' ? 'font/otf' : 'font/ttf'), cacheControl: '0', upsert: false });
+    const { error: uploadError } = await admin.storage.from('site-assets').upload(path, bytes, { contentType: file.type || 'image/jpeg', cacheControl: '0', upsert: false });
     if (uploadError) throw uploadError;
 
     const { data: publicUrlData } = admin.storage.from('site-assets').getPublicUrl(path);
     const url = `${publicUrlData.publicUrl}?v=${version}`;
-    const { error: saveError } = await admin.from('site_assets').upsert({ key, url, version, mime_type: file.type || 'application/octet-stream', updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    const { error: saveError } = await admin.from('site_assets').upsert({ key: keyValue, url, version, mime_type: file.type || 'application/octet-stream', updated_at: new Date().toISOString() }, { onConflict: 'key' });
     if (saveError) {
       await admin.storage.from('site-assets').remove([path]);
       throw saveError;
@@ -87,7 +100,7 @@ export async function POST(request: Request) {
     const oldPath = old?.url ? decodePathFromUrl(old.url) : null;
     if (oldPath) await admin.storage.from('site-assets').remove([oldPath]);
 
-    return NextResponse.json({ ok: true, key, url, version, message: 'تم رفع الملف وتفعيله بنجاح.' }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
+    return NextResponse.json({ ok: true, key: keyValue, url, version, message: 'تم رفع الملف وتفعيله بنجاح.' }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
   } catch (error) {
     console.error('Site asset upload failed:', error);
     return NextResponse.json({ error: 'تعذر حفظ الملف. حاول مرة أخرى.' }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
