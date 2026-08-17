@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createPublicClient } from '@/lib/supabase/public';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 const allowed = new Map([
   ['regular', 'fontRegular'],
@@ -14,8 +13,8 @@ export async function GET(request: Request) {
   const key = allowed.get(weight as 'regular' | 'bold');
   if (!key) return new NextResponse('Not found', { status: 404 });
 
-  const admin = createAdminClient() as any;
-  const { data, error } = await admin
+  const supabase = createPublicClient();
+  const { data, error } = await supabase
     .from('site_assets')
     .select('url,mime_type')
     .eq('key', key)
@@ -23,7 +22,7 @@ export async function GET(request: Request) {
 
   if (error || !data?.url) return new NextResponse('Font not configured', { status: 404 });
 
-  const upstream = await fetch(data.url, { cache: 'no-store' });
+  const upstream = await fetch(data.url, { next: { revalidate: 86400 } });
   if (!upstream.ok) return new NextResponse('Font unavailable', { status: 502 });
 
   const contentType = String(data.mime_type || '').toLowerCase().includes('opentype')
@@ -36,7 +35,7 @@ export async function GET(request: Request) {
     status: 200,
     headers: {
       'Content-Type': contentType,
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'Cache-Control': 'public, max-age=31536000, immutable',
       'Access-Control-Allow-Origin': '*',
       'X-Content-Type-Options': 'nosniff',
     },
