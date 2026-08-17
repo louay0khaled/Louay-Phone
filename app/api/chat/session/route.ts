@@ -5,9 +5,25 @@ import { createAdminClient } from '@/lib/supabase/admin';
 export const dynamic = 'force-dynamic';
 const schema = z.object({ token: z.string().min(20).max(128).optional(), name: z.string().trim().min(2).max(80).optional() });
 const newToken = () => crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
+const recent = new Map<string, number>();
+const WINDOW_MS = 60_000;
+const MAX_PER_WINDOW = 8;
+
+function clientKey(request: Request) {
+  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
+}
+
+function allowed(key: string) {
+  const now = Date.now();
+  const previous = recent.get(key) ?? 0;
+  if (now - previous < WINDOW_MS && previous !== 0) return false;
+  recent.set(key, now);
+  return true;
+}
 
 export async function POST(request: Request) {
   try {
+    if (!allowed(clientKey(request))) return NextResponse.json({ error: 'طلبات المحادثة كثيرة، حاول بعد قليل.' }, { status: 429, headers: { 'Retry-After': '60' } });
     const body = schema.parse(await request.json().catch(() => ({})));
     const supabase = createAdminClient() as any;
     let token = body.token;
