@@ -20,7 +20,7 @@ function assetUrl(row: any) {
 
 export async function GET() {
   try {
-    const supabase = createAdminClient();
+    const supabase = createAdminClient() as any;
 
     const [assetsResult, productsResult, productCountResult, brandCountResult, settingsResult] = await Promise.all([
       supabase.from('site_assets').select('*'),
