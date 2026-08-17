@@ -1,38 +1,36 @@
-import { createClient } from '@/lib/supabase/server';
-import { getSiteAssets } from '@/lib/site-config';
-import HomepageShowcase from '@/components/store/HomepageShowcase';
+import fs from 'node:fs';
+import path from 'node:path';
+import type { Metadata } from 'next';
+import Script from 'next/script';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const dynamic = 'force-static';
+export const revalidate = false;
 
-const heroCopy = [
-  { tag: 'تكنولوجيا بلا حدود', title: 'أناقة تسبق المستقبل', description: 'اكتشف مجموعة مختارة من أقوى الهواتف العالمية.' },
-  { tag: 'أحدث الإصدارات', title: 'قوة في كل تفصيل', description: 'أداء احترافي وتجربة استخدام فائقة السرعة.' },
-  { tag: 'اختيار Louay Phone', title: 'تميز لا يشبه الآخرين', description: 'هواتف أصلية بعناية تناسب أسلوب حياتك.' },
-];
+export const metadata: Metadata = {
+  title: 'Louay Phone | عالم الهواتف الذكية',
+  description: 'Louay Phone - متجر متخصص في أحدث الهواتف الذكية والإكسسوارات الأصلية بأفضل الأسعار وتجربة شراء استثنائية.',
+};
 
-export default async function Home() {
-  const supabase = await createClient();
-  const [
-    { data: products },
-    { data: exchangeRateRow },
-    { data: brands },
-    { data: brandAssets },
-    { count: reviewCount },
-    { count: installmentCount },
-    { count: productCount },
-  ] = await Promise.all([
-    supabase.from('products').select('id,name,slug,price_usd,price_syp,installment_enabled,is_featured,product_images(id,url,alt_text,is_primary,position),brands(name)').eq('is_active', true).order('is_featured', { ascending: false }).order('created_at', { ascending: false }).limit(6),
-    supabase.from('settings').select('value').eq('key', 'exchange_rate').maybeSingle(),
-    supabase.from('brands').select('id,name,slug').order('name'),
-    supabase.from('site_assets').select('key,url').like('key', 'brand:%'),
-    supabase.from('reviews').select('id', { count: 'exact', head: true }).eq('is_approved', true),
-    supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('installment_enabled', true),
-    supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
-  ]);
-  const assets = await getSiteAssets();
-  const brandImageMap = new Map((brandAssets ?? []).map((item: any) => [item.key, item.url]));
-  const brandList = (brands ?? []).filter((brand: any) => brand.id && brand.slug).slice(0, 6).map((brand: any) => ({ ...brand, imageUrl: brandImageMap.get(`brand:${brand.id}`) }));
-  const heroSlides = [assets.hero, assets.hero2, assets.hero3].filter(Boolean).map((asset: any, index: number) => ({ url: asset.url, ...heroCopy[index % heroCopy.length] }));
-  return <HomepageShowcase logo={assets.logo} slides={heroSlides} products={(products ?? []) as any} brands={brandList} exchangeRate={exchangeRateRow?.value} stats={{ productCount: productCount ?? 0, brandCount: (brands ?? []).length, reviewCount: reviewCount ?? 0, installmentCount: installmentCount ?? 0 }} />;
+function readHomepage() {
+  const filePath = path.join(process.cwd(), 'public', 'home.html');
+  const source = fs.readFileSync(filePath, 'utf8');
+  const headMatch = source.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+  const bodyMatch = source.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const head = headMatch?.[1] ?? '';
+  let body = bodyMatch?.[1] ?? source;
+  body = body.replace(/<script[^>]+src=["']\/home-runtime\.js[^>]*><\/script>/gi, '');
+  const links = (head.match(/<link\b[^>]*>/gi) ?? []).join('');
+  const styles = (head.match(/<style[\s\S]*?<\/style>/gi) ?? []).join('');
+  return { links, styles, body };
+}
+
+export default function HomePage() {
+  const homepage = readHomepage();
+  return (
+    <>
+      <div dangerouslySetInnerHTML={{ __html: homepage.links + homepage.styles }} suppressHydrationWarning />
+      <div dangerouslySetInnerHTML={{ __html: homepage.body }} suppressHydrationWarning />
+      <Script src="/home-runtime.js?v=3" strategy="afterInteractive" />
+    </>
+  );
 }
