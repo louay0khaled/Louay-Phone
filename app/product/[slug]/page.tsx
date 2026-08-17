@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
-import { getCachedProduct } from '@/lib/storefront-data';
 import OrderForm from '@/components/store/OrderForm';
 import StoreHeader from '@/components/store/StoreHeader';
+import { getCachedProduct } from '@/lib/storefront-cache';
 
 export const revalidate = 300;
 
@@ -41,14 +41,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProductDetails({ params }: { params: Promise<{ slug: string }> }) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
-  const { product: rawProduct, exchangeRate: exchangeRateValue } = await getCachedProduct(slug);
+  const { product: rawProduct, exchangeRate } = await getCachedProduct(slug);
   const p = rawProduct as any;
   if (!p) notFound();
 
   const images = [...(p.product_images ?? [])].sort((a: any, b: any) => (Number(a.position) || 0) - (Number(b.position) || 0));
   const plans = (p.installment_plans ?? []).filter((x: any) => x.is_active);
   const specs = Object.entries((p.specs ?? {}) as Record<string, unknown>).filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '');
-  const priceSyp = currentSyp(p.price_usd, p.price_syp, exchangeRateValue);
+  const priceSyp = currentSyp(p.price_usd, p.price_syp, exchangeRate);
   const inStock = p.stock_status === 'in_stock';
   const primaryImage = images[0];
   const jsonLd = {
