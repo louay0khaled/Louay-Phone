@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { createPublicClient } from '@/lib/supabase/public';
 import StoreHeader from '@/components/store/StoreHeader';
+import { getCachedBrand, getCachedBrandProducts } from '@/lib/storefront-data';
 
 export const revalidate = 600;
 const PAGE_SIZE = 9;
@@ -30,7 +30,7 @@ function ProductCard({ product, brand, rate }: { product: any; brand: any; rate:
   return <Link href={`/product/${product.slug}`} className="group luxury-card overflow-hidden">
     <div className="product-media relative aspect-[4/4.1] overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(56,189,248,.11),transparent_50%)]" />
-      {img?.url ? <Image src={img.url} alt={img.alt_text ?? product.name} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" className="product-image relative z-10 object-contain p-6 transition-[transform,filter] duration-700 ease-out group-hover:scale-105 group-hover:brightness-110" /> : <div className="relative z-10 flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-slate-500"><div className="flex h-14 w-14 items-center justify-center rounded-[1.15rem] border border-sky-300/10 bg-sky-400/5 text-xl text-sky-300 shadow-inner shadow-sky-500/5">✦</div><span className="text-xs font-bold">الصورة ستُضاف لاحقًا</span></div>}
+      {img?.url ? <Image src={img.url} alt={img.alt_text ?? product.name} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" loading="lazy" className="product-image relative z-10 object-contain p-6 transition-[transform,filter] duration-700 ease-out group-hover:scale-105 group-hover:brightness-110" /> : <div className="relative z-10 flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-slate-500"><div className="flex h-14 w-14 items-center justify-center rounded-[1.15rem] border border-sky-300/10 bg-sky-400/5 text-xl text-sky-300 shadow-inner shadow-sky-500/5">✦</div><span className="text-xs font-bold">الصورة ستُضاف لاحقًا</span></div>}
       {product.installment_enabled && <span className="luxury-badge absolute right-4 top-4 z-20">تقسيط</span>}
     </div>
     <div className="p-4 sm:p-5">
@@ -45,8 +45,7 @@ function ProductCard({ product, brand, rate }: { product: any; brand: any; rate:
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const supabase = createPublicClient();
-  const { data: brand } = await supabase.from('brands').select('name,slug').eq('slug', slug).maybeSingle();
+  const brand = await getCachedBrand(slug);
   if (!brand) return { title: 'الماركة غير موجودة' };
   return {
     title: `${brand.name} — هواتف وأسعار`,
@@ -64,16 +63,9 @@ export default async function BrandPage({ params, searchParams }: { params: Prom
   const { slug } = await params;
   const query = searchParams ? await searchParams : {};
   const page = clampPage(query.page);
-  const supabase = createPublicClient();
-  const [{ data: brand }, { data: rateRow }] = await Promise.all([
-    supabase.from('brands').select('id,name,slug').eq('slug', slug).maybeSingle(),
-    supabase.from('settings').select('value').eq('key', 'exchange_rate').maybeSingle(),
-  ]);
+  const { brand, products, count, rate } = await getCachedBrandProducts(slug, page, PAGE_SIZE);
   if (!brand) notFound();
 
-  const from = (page - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-  const { data: products, count } = await supabase.from('products').select('id,brand_id,name,slug,model,price_usd,price_syp,stock_status,installment_enabled,specs,product_images(id,url,alt_text,is_primary,position)', { count: 'exact' }).eq('brand_id', brand.id).eq('is_active', true).order('is_featured', { ascending: false }).order('created_at', { ascending: false }).range(from, to);
   const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
   if (page > totalPages && (count ?? 0) > 0) notFound();
 
@@ -84,7 +76,7 @@ export default async function BrandPage({ params, searchParams }: { params: Prom
         <div><Link href="/products" className="text-xs font-bold text-sky-300 transition hover:text-sky-200">← الماركات</Link><h1 className="mt-5 text-[2.35rem] font-black tracking-[-.04em] sm:text-5xl">{brand.name}</h1></div>
         <span className="luxury-badge">{count ?? 0} منتج</span>
       </div>
-      {(products ?? []).length ? <div className="catalog-products-grid">{(products ?? []).map((product: any) => <ProductCard key={product.id} product={product} brand={brand} rate={rateRow?.value} />)}</div> : <div className="luxury-surface rounded-3xl p-14 text-center text-slate-400">لا توجد هواتف منشورة لهذه الماركة حاليًا.</div>}
+      {(products ?? []).length ? <div className="catalog-products-grid">{(products ?? []).map((product: any) => <ProductCard key={product.id} product={product} brand={brand} rate={rate} />)}</div> : <div className="luxury-surface rounded-3xl p-14 text-center text-slate-400">لا توجد هواتف منشورة لهذه الماركة حاليًا.</div>}
       {totalPages > 1 && <nav className="mt-10 flex flex-wrap items-center justify-center gap-2" aria-label="صفحات المنتجات">
         {page > 1 && <Link href={`/products/brand/${brand.slug}?page=${page - 1}`} className="luxury-button-secondary">السابق</Link>}
         {Array.from({ length: totalPages }, (_, i) => i + 1).slice(Math.max(0, page - 3), Math.min(totalPages, page + 2)).map(n => <Link key={n} href={`/products/brand/${brand.slug}?page=${n}`} className={n === page ? 'luxury-button' : 'luxury-button-secondary'}>{n}</Link>)}
