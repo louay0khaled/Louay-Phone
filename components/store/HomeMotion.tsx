@@ -7,11 +7,17 @@ export default function HomeMotion() {
     const root = document.querySelector<HTMLElement>('.lp-home');
     if (!root) return;
 
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const coarsePointer = window.matchMedia('(pointer: coarse)');
     const header = root.querySelector<HTMLElement>('[data-home-header]');
     const progress = document.createElement('div');
     progress.className = 'lp-home-scroll-progress';
     progress.setAttribute('aria-hidden', 'true');
     root.appendChild(progress);
+
+    let scrollFrame = 0;
+    let pointerFrame = 0;
+    let pendingPointer: PointerEvent | null = null;
 
     const updateScroll = () => {
       const y = window.scrollY;
@@ -20,21 +26,18 @@ export default function HomeMotion() {
       progress.style.setProperty('--scroll-progress', `${Math.min(1, Math.max(0, y / max))}`);
     };
 
-    let frame = 0;
     const onScroll = () => {
-      if (frame) return;
-      frame = window.requestAnimationFrame(() => {
-        frame = 0;
+      if (scrollFrame) return;
+      scrollFrame = window.requestAnimationFrame(() => {
+        scrollFrame = 0;
         updateScroll();
       });
     };
 
-    const revealNodes = root.querySelectorAll<HTMLElement>(
-      '.lp-home-stats-section, .lp-home-heading, .lp-home-brand-card, .lp-home-product-card, .lp-home-about, .lp-home-cta'
-    );
+    const revealNodes = root.querySelectorAll<HTMLElement>('.lp-home-stats-section, .lp-home-heading, .lp-home-brand-card, .lp-home-product-card, .lp-home-about, .lp-home-cta');
     revealNodes.forEach((node, index) => {
       node.dataset.motionReveal = 'true';
-      node.style.setProperty('--motion-delay', `${Math.min(index % 6, 5) * 70}ms`);
+      node.style.setProperty('--motion-delay', `${Math.min(index % 5, 4) * 55}ms`);
     });
 
     const heroCopy = root.querySelector<HTMLElement>('.lp-home-hero-copy');
@@ -46,11 +49,13 @@ export default function HomeMotion() {
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            (entry.target as HTMLElement).classList.add('is-in-view');
+            const node = entry.target as HTMLElement;
+            node.classList.add('is-in-view');
+            observer.unobserve(node);
           }
         });
       },
-      { threshold: 0.14, rootMargin: '0px 0px -8% 0px' },
+      { threshold: 0.12, rootMargin: '0px 0px -7% 0px' },
     );
     revealNodes.forEach((node) => observer.observe(node));
 
@@ -63,18 +68,25 @@ export default function HomeMotion() {
         if (!target) return;
         event.preventDefault();
         const offset = (header?.getBoundingClientRect().height ?? 0) + 18;
-        window.scrollTo({ top: Math.max(0, target.offsetTop - offset), behavior: 'smooth' });
+        window.scrollTo({ top: Math.max(0, target.offsetTop - offset), behavior: reducedMotion.matches ? 'auto' : 'smooth' });
       };
       anchor.addEventListener('click', handler);
       return { anchor, handler };
     });
 
     const onMove = (event: PointerEvent) => {
-      if (window.matchMedia('(pointer: coarse)').matches) return;
-      const x = (event.clientX / window.innerWidth - 0.5) * 2;
-      const y = (event.clientY / window.innerHeight - 0.5) * 2;
-      root.style.setProperty('--pointer-x', `${x.toFixed(3)}`);
-      root.style.setProperty('--pointer-y', `${y.toFixed(3)}`);
+      if (coarsePointer.matches || reducedMotion.matches) return;
+      pendingPointer = event;
+      if (pointerFrame) return;
+      pointerFrame = window.requestAnimationFrame(() => {
+        pointerFrame = 0;
+        if (!pendingPointer) return;
+        const x = (pendingPointer.clientX / window.innerWidth - 0.5) * 2;
+        const y = (pendingPointer.clientY / window.innerHeight - 0.5) * 2;
+        root.style.setProperty('--pointer-x', `${x.toFixed(2)}`);
+        root.style.setProperty('--pointer-y', `${y.toFixed(2)}`);
+        pendingPointer = null;
+      });
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -86,7 +98,8 @@ export default function HomeMotion() {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
       window.removeEventListener('pointermove', onMove);
-      if (frame) window.cancelAnimationFrame(frame);
+      if (scrollFrame) window.cancelAnimationFrame(scrollFrame);
+      if (pointerFrame) window.cancelAnimationFrame(pointerFrame);
       observer.disconnect();
       anchorHandlers.forEach(({ anchor, handler }) => anchor.removeEventListener('click', handler));
       progress.remove();
