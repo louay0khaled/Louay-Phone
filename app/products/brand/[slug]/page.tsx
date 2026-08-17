@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createPublicClient } from '@/lib/supabase/public';
 import StoreHeader from '@/components/store/StoreHeader';
 
+export const revalidate = 600;
 const PAGE_SIZE = 9;
 
 function currentSyp(priceUsd: unknown, storedSyp: unknown, rateValue: unknown) {
@@ -28,7 +30,7 @@ function ProductCard({ product, brand, rate }: { product: any; brand: any; rate:
   return <Link href={`/product/${product.slug}`} className="group luxury-card overflow-hidden">
     <div className="product-media relative aspect-[4/4.1] overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(56,189,248,.11),transparent_50%)]" />
-      {img?.url ? <img src={img.url} alt={product.name} className="product-image relative z-10 h-full w-full object-contain p-6 transition-[transform,filter] duration-700 ease-out group-hover:scale-105 group-hover:brightness-110" /> : <div className="relative z-10 flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-slate-500"><div className="flex h-14 w-14 items-center justify-center rounded-[1.15rem] border border-sky-300/10 bg-sky-400/5 text-xl text-sky-300 shadow-inner shadow-sky-500/5">✦</div><span className="text-xs font-bold">الصورة ستُضاف لاحقًا</span></div>}
+      {img?.url ? <Image src={img.url} alt={img.alt_text ?? product.name} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" className="product-image relative z-10 object-contain p-6 transition-[transform,filter] duration-700 ease-out group-hover:scale-105 group-hover:brightness-110" /> : <div className="relative z-10 flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-slate-500"><div className="flex h-14 w-14 items-center justify-center rounded-[1.15rem] border border-sky-300/10 bg-sky-400/5 text-xl text-sky-300 shadow-inner shadow-sky-500/5">✦</div><span className="text-xs font-bold">الصورة ستُضاف لاحقًا</span></div>}
       {product.installment_enabled && <span className="luxury-badge absolute right-4 top-4 z-20">تقسيط</span>}
     </div>
     <div className="p-4 sm:p-5">
@@ -43,7 +45,7 @@ function ProductCard({ product, brand, rate }: { product: any; brand: any; rate:
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data: brand } = await supabase.from('brands').select('name,slug').eq('slug', slug).maybeSingle();
   if (!brand) return { title: 'الماركة غير موجودة' };
   return {
@@ -62,7 +64,7 @@ export default async function BrandPage({ params, searchParams }: { params: Prom
   const { slug } = await params;
   const query = searchParams ? await searchParams : {};
   const page = clampPage(query.page);
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const [{ data: brand }, { data: rateRow }] = await Promise.all([
     supabase.from('brands').select('id,name,slug').eq('slug', slug).maybeSingle(),
     supabase.from('settings').select('value').eq('key', 'exchange_rate').maybeSingle(),
@@ -71,7 +73,7 @@ export default async function BrandPage({ params, searchParams }: { params: Prom
 
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
-  const { data: products, count } = await supabase.from('products').select('id,brand_id,name,slug,model,price_usd,price_syp,stock_status,installment_enabled,specs,product_images(id,url,is_primary,position)', { count: 'exact' }).eq('brand_id', brand.id).eq('is_active', true).order('is_featured', { ascending: false }).order('created_at', { ascending: false }).range(from, to);
+  const { data: products, count } = await supabase.from('products').select('id,brand_id,name,slug,model,price_usd,price_syp,stock_status,installment_enabled,specs,product_images(id,url,alt_text,is_primary,position)', { count: 'exact' }).eq('brand_id', brand.id).eq('is_active', true).order('is_featured', { ascending: false }).order('created_at', { ascending: false }).range(from, to);
   const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
   if (page > totalPages && (count ?? 0) > 0) notFound();
 
