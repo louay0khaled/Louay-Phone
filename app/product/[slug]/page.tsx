@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import OrderForm from '@/components/store/OrderForm';
@@ -75,10 +76,10 @@ export default async function ProductDetails({ params }: { params: Promise<{ slu
         <div className="space-y-4">
           <div className="product-visual product-media relative aspect-square overflow-hidden rounded-[2rem] border border-sky-300/10 shadow-[0_30px_100px_rgba(0,0,0,.35)]">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_52%_44%,rgba(56,189,248,.12),transparent_35%)]" />
-            {primaryImage?.url ? <img src={primaryImage.url} alt={primaryImage.alt_text ?? p.name} className="relative z-10 h-full w-full object-contain p-8 sm:p-12" loading="eager" fetchPriority="high" /> : <div className="relative z-10 flex h-full flex-col items-center justify-center gap-3 text-slate-500"><div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-sky-300/10 bg-sky-400/5 text-3xl text-sky-300">✦</div><span className="text-sm font-bold">الصورة ستُضاف لاحقًا</span></div>}
+            {primaryImage?.url ? <Image src={primaryImage.url} alt={primaryImage.alt_text ?? p.name} fill priority sizes="(max-width: 1024px) 100vw, 52vw" className="relative z-10 object-contain p-8 sm:p-12" /> : <div className="relative z-10 flex h-full flex-col items-center justify-center gap-3 text-slate-500"><div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-sky-300/10 bg-sky-400/5 text-3xl text-sky-300">✦</div><span className="text-sm font-bold">الصورة ستُضاف لاحقًا</span></div>}
             <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#020617]/70 to-transparent" />
           </div>
-          {images.length > 1 && <div className="grid grid-cols-5 gap-3">{images.slice(0, 5).map((image: any) => <div key={image.id} className="product-media aspect-square overflow-hidden rounded-2xl border border-sky-300/10"><img src={image.url} alt={image.alt_text ?? p.name} className="h-full w-full object-contain p-2" loading="lazy" /></div>)}</div>}
+          {images.length > 1 && <div className="grid grid-cols-5 gap-3">{images.slice(0, 5).map((image: any) => <div key={image.id} className="product-media relative aspect-square overflow-hidden rounded-2xl border border-sky-300/10"><Image src={image.url} alt={image.alt_text ?? p.name} fill sizes="(max-width: 640px) 20vw, 10vw" className="object-contain p-2" loading="lazy" /></div>)}</div>}
         </div>
 
         <div className="lg:pt-4">
