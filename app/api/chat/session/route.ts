@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 export const dynamic = 'force-dynamic';
 const schema = z.object({ token: z.string().min(20).max(128).optional(), name: z.string().trim().min(2).max(80).optional() });
 const newToken = () => crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
-const recent = new Map<string, number>();
+const recent = new Map<string, { startedAt: number; count: number }>();
 const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 8;
 
@@ -15,9 +15,14 @@ function clientKey(request: Request) {
 
 function allowed(key: string) {
   const now = Date.now();
-  const previous = recent.get(key) ?? 0;
-  if (now - previous < WINDOW_MS && previous !== 0) return false;
-  recent.set(key, now);
+  const state = recent.get(key);
+  if (!state || now - state.startedAt >= WINDOW_MS) {
+    recent.set(key, { startedAt: now, count: 1 });
+    return true;
+  }
+  if (state.count >= MAX_PER_WINDOW) return false;
+  state.count += 1;
+  recent.set(key, state);
   return true;
 }
 
