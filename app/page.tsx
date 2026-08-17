@@ -42,7 +42,6 @@ export default async function HomePage() {
       data={{
         products,
         productCount: productCountResult.count ?? 0,
-        customerCount: 0,
         reviewCount: reviewResult.count ?? 0,
         avgRating,
         brandCount: brandCountResult.count ?? 0,
