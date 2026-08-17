@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import './site.css';
-import ChatWidget from '@/components/store/ChatWidget';
-import HomeMotion from '@/components/store/HomeMotion';
+import ChatGate from '@/components/store/ChatGate';
 import { getSiteAssets } from '@/lib/site-config';
 
 export const dynamic = 'force-dynamic';
@@ -47,5 +46,5 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const boldSrc = bold ? `/api/site-font?weight=bold&v=${bold.version}` : '';
   const fallbackSrc = regularSrc || boldSrc;
   const fontCss = fallbackSrc ? `@font-face{font-family:'LouayCustom';src:url('${fallbackSrc}') format('${fontFormat(regular?.url || bold?.url || '')}');font-style:normal;font-weight:400 600;font-display:swap}${boldSrc ? `@font-face{font-family:'LouayCustom';src:url('${boldSrc}') format('${fontFormat(bold?.url || '')}');font-style:normal;font-weight:700 900;font-display:swap}` : ''}:root{--site-font:'LouayCustom',Arial,Tahoma,sans-serif}html,body,body *{font-family:var(--site-font)!important}button,input,textarea,select,optgroup,option{font-family:var(--site-font)!important}::placeholder{font-family:var(--site-font)!important}` : '';
-  return <html lang="ar" dir="rtl"><head>{fontCss && <style id="site-fonts" dangerouslySetInnerHTML={{ __html: fontCss }} />}<style id="storefront-critical" dangerouslySetInnerHTML={{ __html: criticalStorefrontCss }} /><link rel="stylesheet" href="/storefront-fallback.css?v=7" /><link rel="stylesheet" href="/home-motion.css?v=1" /></head><body>{children}<HomeMotion /><ChatWidget /></body></html>;
+  return <html lang="ar" dir="rtl"><head>{fontCss && <style id="site-fonts" dangerouslySetInnerHTML={{ __html: fontCss }} />}<style id="storefront-critical" dangerouslySetInnerHTML={{ __html: criticalStorefrontCss }} /><link rel="stylesheet" href="/storefront-fallback.css?v=7" /></head><body>{children}<ChatGate /></body></html>;
 }
