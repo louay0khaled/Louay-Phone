@@ -8,17 +8,20 @@ const allowed = new Map([
   ['bold', 'fontBold'],
 ] as const);
 
+type FontAsset = { url: string; mime_type: string | null };
+
 export async function GET(request: Request) {
   const weight = new URL(request.url).searchParams.get('weight') ?? '';
   const key = allowed.get(weight as 'regular' | 'bold');
   if (!key) return new NextResponse('Not found', { status: 404 });
 
   const supabase = createPublicClient();
-  const { data, error } = await supabase
+  const { data: rawData, error } = await supabase
     .from('site_assets')
     .select('url,mime_type')
     .eq('key', key)
     .maybeSingle();
+  const data = rawData as FontAsset | null;
 
   if (error || !data?.url) return new NextResponse('Font not configured', { status: 404 });
 
