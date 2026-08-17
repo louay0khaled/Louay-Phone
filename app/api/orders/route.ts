@@ -14,7 +14,30 @@ const bodySchema = z.object({
   address: z.string().trim().min(2).max(150),
   notes: z.string().trim().max(1000).optional().default(''),
   chatToken: z.string().min(20).max(128).optional(),
+  website: z.string().trim().max(200).optional().default(''),
 });
+
+const recentRequests = new Map<string, number>();
+const RATE_WINDOW_MS = 60_000;
+const MAX_REQUESTS_PER_WINDOW = 5;
+
+function getClientKey(req: Request) {
+  const forwarded = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  const realIp = req.headers.get('x-real-ip')?.trim();
+  return forwarded || realIp || 'unknown';
+}
+
+function checkRateLimit(key: string) {
+  const now = Date.now();
+  for (const [storedKey, timestamp] of recentRequests) {
+    if (now - timestamp > RATE_WINDOW_MS) recentRequests.delete(storedKey);
+  }
+
+  const existing = recentRequests.get(key);
+  if (existing && now - existing < RATE_WINDOW_MS) return false;
+  recentRequests.set(key, now);
+  return true;
+}
 
 function readExchangeRate(value: unknown) {
   if (typeof value === 'number') return value;
@@ -32,10 +55,25 @@ function toSyp(priceUsd: number | null, priceSyp: number | null, rate: number) {
   return 0;
 }
 
+function normalizePhone(value: string) {
+  return value.replace(/[\s().-]/g, '').replace(/^00/, '+');
+}
+
 export async function POST(req: Request) {
   try {
     const payload = bodySchema.parse(await req.json());
+    if (payload.website) return NextResponse.json({ error: 'تعذر إرسال الطلب.' }, { status: 400 });
+
+    const clientKey = getClientKey(req);
+    if (!checkRateLimit(clientKey)) {
+      return NextResponse.json(
+        { error: 'تم استلام عدة محاولات خلال وقت قصير. أعد المحاولة بعد دقيقة.' },
+        { status: 429, headers: { 'Retry-After': '60' } },
+      );
+    }
+
     const db = createAdminClient() as any;
+    const normalizedPhone = normalizePhone(payload.phone);
 
     const [{ data: rateRow }, { data: product }] = await Promise.all([
       db.from('settings').select('value').eq('key', 'exchange_rate').maybeSingle(),
@@ -73,10 +111,10 @@ export async function POST(req: Request) {
         })
       : null;
 
-    const { data: customerMatch } = await db.from('customers').select('id,name,phone,address').eq('phone', payload.phone).maybeSingle();
+    const { data: customerMatch } = await db.from('customers').select('id,name,phone,address').eq('phone', normalizedPhone).maybeSingle();
     let customerId = customerMatch?.id as string | undefined;
     if (!customerId) {
-      const { data: insertedCustomer, error: customerError } = await db.from('customers').insert({ name: payload.name, phone: payload.phone, address: payload.address }).select('id').single();
+      const { data: insertedCustomer, error: customerError } = await db.from('customers').insert({ name: payload.name, phone: normalizedPhone, address: payload.address }).select('id').single();
       if (customerError) throw customerError;
       customerId = insertedCustomer.id;
     } else {
@@ -129,7 +167,7 @@ export async function POST(req: Request) {
     await db.from('conversations').update({ last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversationId);
 
     const ticketForTelegram = ticketCode ?? '—';
-    const orderText = `<b>🛍️ تم تأكيد طلب جديد</b>\n<b>رقم الطلب:</b> <code>${escapeHtml(order.id)}</code>\n<b>التذكرة:</b> <code>${escapeHtml(ticketForTelegram)}</code>\n<b>الهاتف:</b> ${escapeHtml(product.name)}\n<b>الزبون:</b> ${escapeHtml(payload.name)}\n<b>الهاتف للتواصل:</b> ${escapeHtml(payload.phone)}\n<b>العنوان:</b> ${escapeHtml(payload.address)}${install ? `\n<b>التقسيط:</b> ${install.months} أشهر\n<b>الدفعة الأولى:</b> ${Math.round(install.firstPayment).toLocaleString('ar-SY')} ل.س\n<b>القسط الشهري:</b> ${Math.round(install.monthly).toLocaleString('ar-SY')} ل.س` : ''}\n<b>الملاحظات:</b> ${escapeHtml(payload.notes || '—')}\n<b>السعر الإجمالي:</b> ${Math.round(totalPrice).toLocaleString('ar-SY')} ل.س\n\n<b>للرد على المحادثة:</b> <code>/reply ${escapeHtml(ticketForTelegram)} نص الرد</code>`;
+    const orderText = `<b>🛍️ تم تأكيد طلب جديد</b>\n<b>رقم الطلب:</b> <code>${escapeHtml(order.id)}</code>\n<b>التذكرة:</b> <code>${escapeHtml(ticketForTelegram)}</code>\n<b>الهاتف:</b> ${escapeHtml(product.name)}\n<b>الزبون:</b> ${escapeHtml(payload.name)}\n<b>الهاتف للتواصل:</b> ${escapeHtml(normalizedPhone)}\n<b>العنوان:</b> ${escapeHtml(payload.address)}${install ? `\n<b>التقسيط:</b> ${install.months} أشهر\n<b>الدفعة الأولى:</b> ${Math.round(install.firstPayment).toLocaleString('ar-SY')} ل.س\n<b>القسط الشهري:</b> ${Math.round(install.monthly).toLocaleString('ar-SY')} ل.س` : ''}\n<b>الملاحظات:</b> ${escapeHtml(payload.notes || '—')}\n<b>السعر الإجمالي:</b> ${Math.round(totalPrice).toLocaleString('ar-SY')} ل.س\n\n<b>للرد على المحادثة:</b> <code>/reply ${escapeHtml(ticketForTelegram)} نص الرد</code>`;
 
     let telegramNotified = false;
     const adminChatId = getAdminChatId();

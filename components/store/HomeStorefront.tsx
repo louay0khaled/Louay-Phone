@@ -17,7 +17,6 @@ type Product = {
 type HomeData = {
   products: Product[];
   productCount: number;
-  customerCount: number;
   reviewCount: number;
   avgRating: number;
   brandCount: number;
