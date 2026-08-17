@@ -31,11 +31,11 @@ async function loadProductReviews(productId: string) {
 export const getCachedProduct = unstable_cache(
   (slug: string) => loadProduct(slug),
   ['louay-public-product'],
-  { revalidate: 300 },
+  { revalidate: 300, tags: ['storefront-products'] },
 );
 
 export const getCachedProductReviews = unstable_cache(
   (productId: string) => loadProductReviews(productId),
   ['louay-public-product-reviews'],
-  { revalidate: 300 },
+  { revalidate: 300, tags: ['storefront-reviews'] },
 );
