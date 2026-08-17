@@ -3,12 +3,28 @@ import './site.css';
 import ChatGate from '@/components/store/ChatGate';
 import { getSiteAssets } from '@/lib/site-config';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Louay Phone | هواتف فاخرة',
-  description: 'Louay Phone — متجر إلكتروني احترافي للهواتف الذكية.',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://louay-phone.vercel.app'),
+  title: {
+    default: 'Louay Phone | هواتف وأسعار في سوريا',
+    template: '%s | Louay Phone',
+  },
+  description: 'Louay Phone — متجر هواتف ذكية يعرض المنتجات المتوفرة ومواصفاتها وأسعارها الحالية مع طلب مباشر ودعم سريع.',
+  robots: { index: true, follow: true },
+  openGraph: {
+    type: 'website',
+    locale: 'ar_SY',
+    siteName: 'Louay Phone',
+    title: 'Louay Phone | هواتف وأسعار في سوريا',
+    description: 'تصفّح المنتجات المتوفرة فعليًا واطلب مباشرة من صفحة المنتج.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Louay Phone | هواتف وأسعار في سوريا',
+    description: 'منتجات حقيقية، مواصفات واضحة، وطلب مباشر.',
+  },
 };
 
 function fontFormat(url: string) { return url.toLowerCase().split('?')[0].endsWith('.otf') ? 'opentype' : 'truetype'; }
