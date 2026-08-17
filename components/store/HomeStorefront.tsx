@@ -1,10 +1,8 @@
-'use client';
-
 import Image from 'next/image';
 import Link from 'next/link';
 import StoreHeader from '@/components/store/StoreHeader';
 
- type Product = {
+type Product = {
   id: string;
   name: string;
   slug: string;
@@ -55,7 +53,6 @@ export default function HomeStorefront({ data }: { data: HomeData }) {
   return (
     <main className="premium-home">
       <StoreHeader />
-
       <section className="premium-hero">
         <div className="premium-hero__copy">
           <p className="premium-eyebrow">LOUAY PHONE · PREMIUM SMARTPHONES</p>
@@ -65,31 +62,14 @@ export default function HomeStorefront({ data }: { data: HomeData }) {
             <Link href="/products" className="premium-btn premium-btn--solid">استكشف الهواتف <span aria-hidden>←</span></Link>
             <Link href="#featured" className="premium-btn premium-btn--quiet">شاهد المختارات</Link>
           </div>
-          <div className="premium-proof" aria-label="مزايا المتجر">
-            <span>منتجات فعلية</span><i />
-            <span>طلب مباشر</span><i />
-            <span>دعم سريع</span>
-          </div>
+          <div className="premium-proof" aria-label="مزايا المتجر"><span>منتجات فعلية</span><i /><span>طلب مباشر</span><i /><span>دعم سريع</span></div>
         </div>
-
         <div className="premium-hero__visual">
           <div className="premium-hero__halo" aria-hidden />
           <div className="premium-hero__product">
-            {heroImage?.url ? (
-              <Image src={heroImage.url} alt={heroImage.alt_text ?? hero?.name ?? 'هاتف'} fill priority sizes="(max-width: 768px) 92vw, 55vw" className="premium-hero__image" />
-            ) : (
-              <div className="premium-hero__fallback">أضف صورة المنتج من لوحة الإدارة</div>
-            )}
+            {heroImage?.url ? <Image src={heroImage.url} alt={heroImage.alt_text ?? hero?.name ?? 'هاتف'} fill priority sizes="(max-width: 768px) 92vw, 55vw" className="premium-hero__image" /> : <div className="premium-hero__fallback">أضف صورة المنتج من لوحة الإدارة</div>}
           </div>
-          {hero ? (
-            <Link href={`/product/${hero.slug}`} className="premium-hero__caption">
-              <div>
-                <span>{hero.brands?.name ?? 'Louay Phone'}</span>
-                <b>{hero.name}</b>
-              </div>
-              <ProductPrice product={hero} exchangeRate={data.exchangeRate} />
-            </Link>
-          ) : null}
+          {hero ? <Link href={`/product/${hero.slug}`} className="premium-hero__caption"><div><span>{hero.brands?.name ?? 'Louay Phone'}</span><b>{hero.name}</b></div><ProductPrice product={hero} exchangeRate={data.exchangeRate} /></Link> : null}
         </div>
       </section>
 
@@ -101,58 +81,21 @@ export default function HomeStorefront({ data }: { data: HomeData }) {
       </section>
 
       <section id="featured" className="premium-section">
-        <div className="premium-section__head">
-          <div>
-            <p className="premium-eyebrow">THE COLLECTION</p>
-            <h2>مختارات تستحق.</h2>
-          </div>
-          <Link href="/products" className="premium-text-link">عرض الكتالوج كاملًا <span aria-hidden>←</span></Link>
-        </div>
+        <div className="premium-section__head"><div><p className="premium-eyebrow">THE COLLECTION</p><h2>مختارات تستحق.</h2></div><Link href="/products" className="premium-text-link">عرض الكتالوج كاملًا <span aria-hidden>←</span></Link></div>
         <div className="premium-products">
           {secondaries.map((product) => {
             const image = product.product_images?.find((item) => item.is_primary) ?? product.product_images?.[0];
-            return (
-              <Link href={`/product/${product.slug}`} key={product.id} className="premium-product-card">
-                <div className="premium-product-card__media">
-                  {image?.url ? <Image src={image.url} alt={image.alt_text ?? product.name} fill sizes="(max-width: 700px) 100vw, 33vw" className="premium-product-card__image" /> : <span>لا توجد صورة</span>}
-                  <span className="premium-product-card__brand">{product.brands?.name ?? 'Louay Phone'}</span>
-                </div>
-                <div className="premium-product-card__body">
-                  <div><h3>{product.name}</h3>{product.model ? <p>{product.model}</p> : null}</div>
-                  <ProductPrice product={product} exchangeRate={data.exchangeRate} />
-                </div>
-              </Link>
-            );
+            return <Link href={`/product/${product.slug}`} key={product.id} className="premium-product-card"><div className="premium-product-card__media">{image?.url ? <Image src={image.url} alt={image.alt_text ?? product.name} fill sizes="(max-width: 700px) 100vw, 33vw" className="premium-product-card__image" /> : <span>لا توجد صورة</span>}<span className="premium-product-card__brand">{product.brands?.name ?? 'Louay Phone'}</span></div><div className="premium-product-card__body"><div><h3>{product.name}</h3>{product.model ? <p>{product.model}</p> : null}</div><ProductPrice product={product} exchangeRate={data.exchangeRate} /></div></Link>;
           })}
         </div>
       </section>
 
       <section className="premium-story">
-        <div className="premium-story__copy">
-          <p className="premium-eyebrow">SHOP WITH CONFIDENCE</p>
-          <h2>المتجر اللي يخليك تحكم على المنتج قبل ما تطلبه.</h2>
-          <p>بدل الكلام التسويقي الزائد، نضع أمامك المنتج الحقيقي ومواصفاته وسعره وتوفره، ثم نختصر قرار الشراء في خطوة واضحة.</p>
-          <Link href="/products" className="premium-btn premium-btn--solid">ابدأ الاختيار</Link>
-        </div>
-        <div className="premium-story__grid">
-          {[
-            ['01', 'منتجات حقيقية', 'المختارات تُسحب من مخزون المتجر الفعلي.'],
-            ['02', 'صفحة منتج واضحة', 'المعلومات والسعر والطلب في مكان واحد.'],
-            ['03', 'شراء بدون احتكاك', 'لا تسجيل إجباري ولا خطوات مشتتة.'],
-            ['04', 'مساعدة عند الحاجة', 'المحادثة موجودة عندما تحتاج رأيًا أو مساعدة.'],
-          ].map(([num, title, text]) => (
-            <div className="premium-principle" key={num}>
-              <span>{num}</span><h3>{title}</h3><p>{text}</p>
-            </div>
-          ))}
-        </div>
+        <div className="premium-story__copy"><p className="premium-eyebrow">SHOP WITH CONFIDENCE</p><h2>المتجر اللي يخليك تحكم على المنتج قبل ما تطلبه.</h2><p>بدل الكلام التسويقي الزائد، نضع أمامك المنتج الحقيقي ومواصفاته وسعره وتوفره، ثم نختصر قرار الشراء في خطوة واضحة.</p><Link href="/products" className="premium-btn premium-btn--solid">ابدأ الاختيار</Link></div>
+        <div className="premium-story__grid">{[['01','منتجات حقيقية','المختارات تُسحب من مخزون المتجر الفعلي.'],['02','صفحة منتج واضحة','المعلومات والسعر والطلب في مكان واحد.'],['03','شراء بدون احتكاك','لا تسجيل إجباري ولا خطوات مشتتة.'],['04','مساعدة عند الحاجة','المحادثة موجودة عندما تحتاج رأيًا أو مساعدة.']].map(([num,title,text]) => <div className="premium-principle" key={num}><span>{num}</span><h3>{title}</h3><p>{text}</p></div>)}</div>
       </section>
 
-      <section className="premium-bottom">
-        <p className="premium-eyebrow">LOUAY PHONE</p>
-        <h2>Less noise.<br />Better choice.</h2>
-        <Link href="/products" className="premium-btn premium-btn--solid">تسوّق الهواتف <span aria-hidden>←</span></Link>
-      </section>
+      <section className="premium-bottom"><p className="premium-eyebrow">LOUAY PHONE</p><h2>Less noise.<br />Better choice.</h2><Link href="/products" className="premium-btn premium-btn--solid">تسوّق الهواتف <span aria-hidden>←</span></Link></section>
     </main>
   );
 }
