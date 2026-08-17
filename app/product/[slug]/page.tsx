@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import OrderForm from '@/components/store/OrderForm';
 import StoreHeader from '@/components/store/StoreHeader';
-import { getCachedProduct } from '@/lib/storefront-data';
+import { getCachedProduct } from '@/lib/storefront-cache';
 
 export const revalidate = 300;
 
