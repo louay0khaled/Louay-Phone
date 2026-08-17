@@ -3,7 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import StoreHeader from '@/components/store/StoreHeader';
-import { getCachedBrand, getCachedBrandProducts } from '@/lib/storefront-data';
+import { getCachedBrand, getCachedBrandProducts } from '@/lib/storefront-cache';
 
 export const revalidate = 600;
 const PAGE_SIZE = 9;
