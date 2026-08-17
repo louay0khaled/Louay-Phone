@@ -22,6 +22,9 @@ function rateKey(request: Request, visitorToken?: string | null) {
 
 function consumeRateLimit(key: string) {
   const now = Date.now();
+  for (const [storedKey, state] of requestCounts) {
+    if (state.resetAt <= now) requestCounts.delete(storedKey);
+  }
   const current = requestCounts.get(key);
   if (!current || current.resetAt <= now) {
     requestCounts.set(key, { count: 1, resetAt: now + rateWindowMs });
@@ -74,11 +77,15 @@ export async function POST(request: Request) {
     const { db, conversation } = await getOrCreateConversation();
     if (conversation.ticket_code !== body.ticketId) return NextResponse.json({ error: 'المحادثة غير صالحة' }, { status: 403 });
     if (conversation.status === 'closed') return NextResponse.json({ error: 'هذه المحادثة مغلقة' }, { status: 409 });
-    if (body.name && body.name !== conversation.visitor_name) await db.from('conversations').update({ visitor_name: body.name }).eq('id', conversation.id);
+    if (body.name && body.name !== conversation.visitor_name) {
+      const { error: nameUpdateError } = await db.from('conversations').update({ visitor_name: body.name }).eq('id', conversation.id);
+      if (nameUpdateError) throw nameUpdateError;
+    }
 
     const { error: messageError } = await db.from('messages').insert({ conversation_id: conversation.id, sender_type: 'user', message_text: body.message, is_read: false });
     if (messageError) throw messageError;
-    await db.from('conversations').update({ last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversation.id);
+    const { error: conversationUpdateError } = await db.from('conversations').update({ last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversation.id);
+    if (conversationUpdateError) throw conversationUpdateError;
 
     const adminChatId = getAdminChatId();
     if (adminChatId !== null) {
