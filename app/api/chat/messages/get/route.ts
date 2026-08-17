@@ -14,6 +14,9 @@ function clientKey(request: Request) {
 
 function allowed(key: string) {
   const now = Date.now();
+  for (const [storedKey, state] of recent) {
+    if (now - state.startedAt >= WINDOW_MS) recent.delete(storedKey);
+  }
   const state = recent.get(key);
   if (!state || now - state.startedAt >= WINDOW_MS) {
     recent.set(key, { startedAt: now, count: 1 });
@@ -21,21 +24,23 @@ function allowed(key: string) {
   }
   if (state.count >= MAX_PER_WINDOW) return false;
   state.count += 1;
-  recent.set(key, state);
   return true;
 }
 
 export async function POST(request: Request) {
   try {
-    if (!allowed(clientKey(request))) return NextResponse.json({ error: 'طلبات كثيرة، حاول بعد قليل.' }, { status: 429, headers: { 'Retry-After': '60' } });
     const { token } = schema.parse(await request.json());
+    if (!allowed(clientKey(request))) return NextResponse.json({ error: 'طلبات كثيرة، حاول بعد قليل.' }, { status: 429, headers: { 'Retry-After': '60' } });
+
     const supabase = createAdminClient() as any;
-    const { data: conversation } = await supabase.from('conversations').select('id,ticket_code,status,visitor_name').eq('visitor_token', token).maybeSingle();
+    const { data: conversation, error: conversationError } = await supabase.from('conversations').select('id,ticket_code,status,visitor_name').eq('visitor_token', token).maybeSingle();
+    if (conversationError) throw conversationError;
     if (!conversation) return NextResponse.json({ error: 'المحادثة غير موجودة.' }, { status: 404 });
     const { data: messages, error } = await supabase.from('messages').select('id,sender_type,message_text,created_at').eq('conversation_id', conversation.id).order('created_at', { ascending: true }).limit(200);
     if (error) throw error;
     return NextResponse.json({ ok: true, ticketId: conversation.ticket_code, status: conversation.status, visitorName: conversation.visitor_name, messages: (messages ?? []).map((m: any) => ({ id: m.id, senderType: m.sender_type, text: m.message_text, createdAt: m.created_at })) });
   } catch (error) {
+    if (error instanceof z.ZodError) return NextResponse.json({ error: 'جلسة المحادثة غير صالحة.' }, { status: 400 });
     console.error('Chat messages fetch error:', error);
     return NextResponse.json({ error: 'تعذر تحميل المحادثة.' }, { status: 500 });
   }
