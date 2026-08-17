@@ -24,16 +24,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
   const supabase = await createClient();
-  const { data } = await supabase.from('products').select('name,model,description,price_usd,price_syp,brands(name),product_images(url,alt_text,is_primary,position)').eq('slug', slug).eq('is_active', true).maybeSingle();
+  const { data: rawData } = await supabase.from('products').select('name,slug,model,description,price_usd,price_syp,brands(name),product_images(url,alt_text,is_primary,position)').eq('slug', slug).eq('is_active', true).maybeSingle();
+  const data = rawData as any;
   if (!data) return { title: 'المنتج غير موجود' };
-  const image = [...((data as any).product_images ?? [])].sort((a: any, b: any) => (Number(a.position) || 0) - (Number(b.position) || 0))[0];
-  const brand = (data as any).brands?.name ?? 'Louay Phone';
+  const image = [...(data.product_images ?? [])].sort((a: any, b: any) => (Number(a.position) || 0) - (Number(b.position) || 0))[0];
+  const brand = data.brands?.name ?? 'Louay Phone';
   const title = `${brand} ${data.name}${data.model ? ` ${data.model}` : ''}`;
   return {
     title,
-    description: (data.description as string | null) || `${title} — المواصفات والسعر الحالي وطلب مباشر من Louay Phone.`,
+    description: data.description || `${title} — المواصفات والسعر الحالي وطلب مباشر من Louay Phone.`,
     alternates: { canonical: `/product/${data.slug}` },
-    openGraph: { title: `${title} | Louay Phone`, description: (data.description as string | null) || 'مواصفات واضحة وسعر حالي وطلب مباشر.', type: 'website', images: image?.url ? [{ url: image.url, alt: image.alt_text ?? title }] : [] },
+    openGraph: { title: `${title} | Louay Phone`, description: data.description || 'مواصفات واضحة وسعر حالي وطلب مباشر.', type: 'website', images: image?.url ? [{ url: image.url, alt: image.alt_text ?? title }] : [] },
   };
 }
 
@@ -87,14 +88,8 @@ export default async function ProductDetails({ params }: { params: Promise<{ slu
           <div className="luxury-divider my-6" />
           <div className="flex flex-wrap items-end gap-x-7 gap-y-4"><div><p className="text-xs font-bold text-slate-500">السعر الحالي</p><b className="mt-1 block text-3xl tracking-tight">{priceSyp ? `${priceSyp.toLocaleString('ar-SY')} ل.س` : 'السعر عند الطلب'}</b></div>{p.price_usd ? <div className="pb-1"><p className="text-xs text-slate-600">بالدولار</p><p className="mt-1 text-sm font-bold text-slate-300">${Number(p.price_usd).toLocaleString('en-US')}</p></div> : null}</div>
           {p.description && <p className="mt-7 max-w-2xl whitespace-pre-line text-sm leading-8 text-slate-400 sm:text-base">{p.description}</p>}
-
-          <div className="mt-8 rounded-[1.5rem] border border-sky-300/10 bg-white/[.025] p-5 sm:p-6">
-            <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-black">المواصفات</h2><span className="luxury-badge">معلومات المنتج</span></div>
-            {specs.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{specs.map(([key, value]) => <div key={key} className="rounded-2xl border border-white/[.06] bg-black/10 p-3.5 transition hover:border-sky-300/15 hover:bg-sky-400/[.03]"><span className="text-[11px] font-bold text-slate-500">{specLabel(key)}</span><p className="mt-1 text-sm font-bold text-slate-200">{String(value)}</p></div>)}</div> : <p className="mt-4 text-sm text-slate-500">ستتوفر المواصفات بالتفصيل قريبًا.</p>}
-          </div>
-
+          <div className="mt-8 rounded-[1.5rem] border border-sky-300/10 bg-white/[.025] p-5 sm:p-6"><div className="flex items-center justify-between gap-3"><h2 className="text-lg font-black">المواصفات</h2><span className="luxury-badge">معلومات المنتج</span></div>{specs.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{specs.map(([key, value]) => <div key={key} className="rounded-2xl border border-white/[.06] bg-black/10 p-3.5 transition hover:border-sky-300/15 hover:bg-sky-400/[.03]"><span className="text-[11px] font-bold text-slate-500">{specLabel(key)}</span><p className="mt-1 text-sm font-bold text-slate-200">{String(value)}</p></div>)}</div> : <p className="mt-4 text-sm text-slate-500">ستتوفر المواصفات بالتفصيل قريبًا.</p>}</div>
           {(p.installment_enabled || plans.length) && <div className="mt-5 rounded-[1.5rem] border border-sky-300/10 bg-sky-400/[.035] p-5"><h2 className="text-base font-black">التقسيط</h2><p className="mt-2 text-sm leading-7 text-slate-400">هذا المنتج يدعم خيارات تقسيط؛ ستظهر التفاصيل ضمن نموذج الطلب المتاح أدناه.</p>{plans.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{plans.map((plan: any) => <span key={plan.id} className="rounded-xl border border-white/10 bg-white/[.03] px-3 py-2 text-xs font-bold text-slate-300">{plan.months} شهر</span>)}</div>}</div>}
-
           <OrderForm product={p} plans={plans} />
         </div>
       </section>
