@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 export default async function HomePage() {
   const admin = createAdminClient() as any;
-  const [productsResult, productCountResult, customerCountResult, reviewResult, brandCountResult] = await Promise.all([
+  const [productsResult, productCountResult, customerCountResult, reviewResult, brandCountResult, exchangeRateResult] = await Promise.all([
     admin
       .from('products')
       .select('id,name,slug,model,price_usd,price_syp,stock_status,installment_enabled,brands(name),product_images(url,alt_text,is_primary,position)')
@@ -28,6 +28,7 @@ export default async function HomePage() {
     admin.from('customers').select('id', { count: 'exact', head: true }),
     admin.from('reviews').select('rating', { count: 'exact' }).eq('is_approved', true),
     admin.from('brands').select('id', { count: 'exact', head: true }),
+    admin.from('settings').select('value').eq('key', 'exchange_rate').maybeSingle(),
   ]);
 
   const ratings = (reviewResult.data ?? []).map((row: any) => Number(row.rating)).filter((value: number) => value >= 1 && value <= 5);
@@ -38,17 +39,16 @@ export default async function HomePage() {
   }));
 
   return (
-    <>
-      <HomeStorefront
-        data={{
-          products,
-          productCount: productCountResult.count ?? 0,
-          customerCount: customerCountResult.count ?? 0,
-          reviewCount: reviewResult.count ?? 0,
-          avgRating,
-          brandCount: brandCountResult.count ?? 0,
-        }}
-      />
-    </>
+    <HomeStorefront
+      data={{
+        products,
+        productCount: productCountResult.count ?? 0,
+        customerCount: customerCountResult.count ?? 0,
+        reviewCount: reviewResult.count ?? 0,
+        avgRating,
+        brandCount: brandCountResult.count ?? 0,
+        exchangeRate: exchangeRateResult.data?.value ?? null,
+      }}
+    />
   );
 }
