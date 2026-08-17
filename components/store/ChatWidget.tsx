@@ -16,7 +16,7 @@ export default function ChatWidget() {
 
   useEffect(() => { const openChat = () => { setOpen(true); void openSession(); }; const onGlobalClick = (event: MouseEvent) => { const target = event.target as HTMLElement | null; if (target?.closest('[data-open-chat]')) openChat(); }; window.addEventListener('louay:open-chat', openChat); document.addEventListener('click', onGlobalClick, true); return () => { window.removeEventListener('louay:open-chat', openChat); document.removeEventListener('click', onGlobalClick, true); }; }, []);
   useEffect(() => { if (open && !token) void openSession(); }, [open]);
-  useEffect(() => { if (!open || !token) return; const timer = window.setInterval(() => void refresh(), 2000); return () => window.clearInterval(timer); }, [open, token]);
+  useEffect(() => { if (!open || !token) return; const timer = window.setInterval(() => void refresh(), 5000); return () => window.clearInterval(timer); }, [open, token]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   return <>
