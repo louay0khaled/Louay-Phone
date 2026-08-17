@@ -5,6 +5,12 @@ import HomepageShowcase from '@/components/store/HomepageShowcase';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const heroCopy = [
+  { tag: 'تكنولوجيا بلا حدود', title: 'أناقة تسبق المستقبل', description: 'اكتشف مجموعة مختارة من أقوى الهواتف العالمية.' },
+  { tag: 'أحدث الإصدارات', title: 'قوة في كل تفصيل', description: 'أداء احترافي وتجربة استخدام فائقة السرعة.' },
+  { tag: 'اختيار Louay Phone', title: 'تميز لا يشبه الآخرين', description: 'هواتف أصلية بعناية تناسب أسلوب حياتك.' },
+];
+
 export default async function Home() {
   const supabase = await createClient();
   const [
@@ -24,18 +30,9 @@ export default async function Home() {
     supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('installment_enabled', true),
     supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
   ]);
-
   const assets = await getSiteAssets();
   const brandImageMap = new Map((brandAssets ?? []).map((item: any) => [item.key, item.url]));
   const brandList = (brands ?? []).filter((brand: any) => brand.id && brand.slug).slice(0, 6).map((brand: any) => ({ ...brand, imageUrl: brandImageMap.get(`brand:${brand.id}`) }));
-  const heroSlides = [assets.hero, assets.hero2, assets.hero3].filter(Boolean).map((asset: any) => ({ url: asset.url }));
-
-  return <HomepageShowcase
-    logo={assets.logo}
-    slides={heroSlides}
-    products={(products ?? []) as any}
-    brands={brandList}
-    exchangeRate={exchangeRateRow?.value}
-    stats={{ productCount: productCount ?? 0, brandCount: (brands ?? []).length, reviewCount: reviewCount ?? 0, installmentCount: installmentCount ?? 0 }}
-  />;
+  const heroSlides = [assets.hero, assets.hero2, assets.hero3].filter(Boolean).map((asset: any, index: number) => ({ url: asset.url, ...heroCopy[index % heroCopy.length] }));
+  return <HomepageShowcase logo={assets.logo} slides={heroSlides} products={(products ?? []) as any} brands={brandList} exchangeRate={exchangeRateRow?.value} stats={{ productCount: productCount ?? 0, brandCount: (brands ?? []).length, reviewCount: reviewCount ?? 0, installmentCount: installmentCount ?? 0 }} />;
 }
