@@ -1,36 +1,54 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import type { Metadata } from 'next';
-import Script from 'next/script';
+import { createAdminClient } from '@/lib/supabase/admin';
+import HomeStorefront from '@/components/store/HomeStorefront';
 
-export const dynamic = 'force-static';
-export const revalidate = false;
+export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: 'Louay Phone | عالم الهواتف الذكية',
-  description: 'Louay Phone - متجر متخصص في أحدث الهواتف الذكية والإكسسوارات الأصلية بأفضل الأسعار وتجربة شراء استثنائية.',
+  title: 'Louay Phone | هواتف وأسعار حقيقية في سوريا',
+  description: 'تصفّح الهواتف المتوفرة فعليًا في Louay Phone، اطّلع على المواصفات والسعر الحالي ثم أرسل طلبك مباشرة.',
+  alternates: { canonical: '/' },
+  openGraph: {
+    title: 'Louay Phone | هواتف وأسعار حقيقية في سوريا',
+    description: 'اختيار واضح، بيانات المنتج الحقيقية، وطلب مباشر.',
+    type: 'website',
+  },
 };
 
-function readHomepage() {
-  const filePath = path.join(process.cwd(), 'public', 'home.html');
-  const source = fs.readFileSync(filePath, 'utf8');
-  const headMatch = source.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-  const bodyMatch = source.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-  const head = headMatch?.[1] ?? '';
-  let body = bodyMatch?.[1] ?? source;
-  body = body.replace(/<script[^>]+src=["']\/home-runtime\.js[^>]*><\/script>/gi, '');
-  const links = (head.match(/<link\b[^>]*>/gi) ?? []).join('');
-  const styles = (head.match(/<style[\s\S]*?<\/style>/gi) ?? []).join('');
-  return { links, styles, body };
-}
+export default async function HomePage() {
+  const admin = createAdminClient() as any;
+  const [productsResult, productCountResult, customerCountResult, reviewResult, brandCountResult] = await Promise.all([
+    admin
+      .from('products')
+      .select('id,name,slug,model,price_usd,price_syp,stock_status,installment_enabled,brands(name),product_images(url,alt_text,is_primary,position)')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(6),
+    admin.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
+    admin.from('customers').select('id', { count: 'exact', head: true }),
+    admin.from('reviews').select('rating', { count: 'exact' }).eq('is_approved', true),
+    admin.from('brands').select('id', { count: 'exact', head: true }),
+  ]);
 
-export default function HomePage() {
-  const homepage = readHomepage();
+  const ratings = (reviewResult.data ?? []).map((row: any) => Number(row.rating)).filter((value: number) => value >= 1 && value <= 5);
+  const avgRating = ratings.length ? ratings.reduce((sum: number, value: number) => sum + value, 0) / ratings.length : 0;
+  const products = (productsResult.data ?? []).map((product: any) => ({
+    ...product,
+    product_images: [...(product.product_images ?? [])].sort((a: any, b: any) => (Number(a.position) || 0) - (Number(b.position) || 0)),
+  }));
+
   return (
     <>
-      <div dangerouslySetInnerHTML={{ __html: homepage.links + homepage.styles }} suppressHydrationWarning />
-      <div dangerouslySetInnerHTML={{ __html: homepage.body }} suppressHydrationWarning />
-      <Script src="/home-runtime.js?v=3" strategy="afterInteractive" />
+      <HomeStorefront
+        data={{
+          products,
+          productCount: productCountResult.count ?? 0,
+          customerCount: customerCountResult.count ?? 0,
+          reviewCount: reviewResult.count ?? 0,
+          avgRating,
+          brandCount: brandCountResult.count ?? 0,
+        }}
+      />
     </>
   );
 }
