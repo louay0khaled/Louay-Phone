@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
@@ -32,12 +33,29 @@ function ProductCard({ product, brand, rate }: { product: any; brand: any; rate:
     </div>
     <div className="p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3"><p className="text-[10px] font-extrabold uppercase tracking-[.14em] text-sky-400">{brand.name}</p>{product.stock_status === 'in_stock' && <span className="text-[10px] font-bold text-emerald-300">متوفر</span>}</div>
-      <h2 className="mt-2 line-clamp-2 min-h-[3.2rem] text-[1rem] font-extrabold leading-6 tracking-tight text-white">{product.name}</h2>
+      <h2 className="mt-2 line-clamp-2 min-h-[3.2rem] text-[1rem] font-extrabold leading-6 tracking-tight text-white sm:text-[1.05rem]">{product.name}</h2>
       {(product.model || note) && <p className="mt-1 min-h-5 line-clamp-1 text-xs text-slate-500">{product.model && product.model !== '-' ? product.model : ''}{note ? ` • ${note}` : ''}</p>}
       <div className="luxury-divider my-3.5" />
       <div className="flex items-end justify-between gap-2"><div><b className="text-sm text-white sm:text-base">{priceSyp ? `${priceSyp.toLocaleString('ar-SY')} ل.س` : 'السعر عند الطلب'}</b>{product.price_usd && <p className="mt-1 text-[11px] text-slate-500">${Number(product.price_usd).toLocaleString()}</p>}</div><span className="text-[11px] font-bold text-slate-500 transition group-hover:text-sky-300">التفاصيل ←</span></div>
     </div>
   </Link>;
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await createClient();
+  const { data: brand } = await supabase.from('brands').select('name,slug').eq('slug', slug).maybeSingle();
+  if (!brand) return { title: 'الماركة غير موجودة' };
+  return {
+    title: `${brand.name} — هواتف وأسعار`,
+    description: `تصفح هواتف ${brand.name} المنشورة حاليًا في Louay Phone مع المواصفات والأسعار والطلب المباشر.`,
+    alternates: { canonical: `/products/brand/${brand.slug}` },
+    openGraph: {
+      title: `${brand.name} | Louay Phone`,
+      description: `هواتف ${brand.name} المتوفرة حاليًا في Louay Phone.`,
+      type: 'website',
+    },
+  };
 }
 
 export default async function BrandPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams?: Promise<{ page?: string | string[] }> }) {
