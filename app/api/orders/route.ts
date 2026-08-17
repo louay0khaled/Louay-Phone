@@ -34,13 +34,11 @@ function checkRateLimit(key: string) {
     entry.timestamps = entry.timestamps.filter((timestamp) => now - timestamp < RATE_WINDOW_MS);
     if (entry.timestamps.length === 0) recentRequests.delete(storedKey);
   }
-
   const entry = recentRequests.get(key) ?? { timestamps: [] };
   if (entry.timestamps.length >= MAX_REQUESTS_PER_WINDOW) {
     const oldest = entry.timestamps[0] ?? now;
     return Math.max(1, Math.ceil((RATE_WINDOW_MS - (now - oldest)) / 1000));
   }
-
   entry.timestamps.push(now);
   recentRequests.set(key, entry);
   return 0;
@@ -133,16 +131,33 @@ export async function POST(req: Request) {
     let ticketCode: string | null = null;
 
     if (payload.chatToken) {
-      const { data: conversation } = await db.from('conversations').select('id,ticket_code,customer_id,status').eq('visitor_token', payload.chatToken).maybeSingle();
-      if (conversation && conversation.status !== 'closed') {
+      const { data: conversation, error: conversationLookupError } = await db
+        .from('conversations')
+        .select('id,ticket_code,customer_id,status')
+        .eq('visitor_token', payload.chatToken)
+        .maybeSingle();
+      if (conversationLookupError) throw conversationLookupError;
+
+      const sameOwner = conversation && (!conversation.customer_id || conversation.customer_id === customerId);
+      if (sameOwner && conversation.status !== 'closed') {
         conversationId = conversation.id;
         ticketCode = conversation.ticket_code;
-        await db.from('conversations').update({ customer_id: customerId, visitor_name: payload.name, last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversation.id);
+        const { error: conversationUpdateError } = await db
+          .from('conversations')
+          .update({ customer_id: customerId, visitor_name: payload.name, last_message_at: new Date().toISOString(), status: 'open' })
+          .eq('id', conversation.id);
+        if (conversationUpdateError) throw conversationUpdateError;
       }
     }
 
     if (!conversationId) {
-      const { data: existing } = await db.from('conversations').select('id,ticket_code,status').eq('customer_id', customerId).is('telegram_chat_id', null).neq('status', 'closed').maybeSingle();
+      const { data: existing } = await db
+        .from('conversations')
+        .select('id,ticket_code,status')
+        .eq('customer_id', customerId)
+        .is('telegram_chat_id', null)
+        .neq('status', 'closed')
+        .maybeSingle();
       if (existing) {
         conversationId = existing.id;
         ticketCode = existing.ticket_code;
