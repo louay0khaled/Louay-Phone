@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import './site.css';
 import ChatGate from '@/components/store/ChatGate';
 import { getSiteAssets } from '@/lib/site-config';
@@ -7,24 +9,11 @@ export const revalidate = 3600;
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://louay-phone.vercel.app'),
-  title: {
-    default: 'Louay Phone | هواتف وأسعار في سوريا',
-    template: '%s | Louay Phone',
-  },
+  title: { default: 'Louay Phone | هواتف وأسعار في سوريا', template: '%s | Louay Phone' },
   description: 'Louay Phone — متجر هواتف ذكية يعرض المنتجات المتوفرة ومواصفاتها وأسعارها الحالية مع طلب مباشر ودعم سريع.',
   robots: { index: true, follow: true },
-  openGraph: {
-    type: 'website',
-    locale: 'ar_SY',
-    siteName: 'Louay Phone',
-    title: 'Louay Phone | هواتف وأسعار في سوريا',
-    description: 'تصفّح المنتجات المتوفرة فعليًا واطلب مباشرة من صفحة المنتج.',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Louay Phone | هواتف وأسعار في سوريا',
-    description: 'منتجات حقيقية، مواصفات واضحة، وطلب مباشر.',
-  },
+  openGraph: { type: 'website', locale: 'ar_SY', siteName: 'Louay Phone', title: 'Louay Phone | هواتف وأسعار في سوريا', description: 'تصفّح المنتجات المتوفرة فعليًا واطلب مباشرة من صفحة المنتج.' },
+  twitter: { card: 'summary_large_image', title: 'Louay Phone | هواتف وأسعار في سوريا', description: 'منتجات حقيقية، مواصفات واضحة، وطلب مباشر.' },
 };
 
 function fontFormat(url: string) { return url.toLowerCase().split('?')[0].endsWith('.otf') ? 'opentype' : 'truetype'; }
@@ -62,5 +51,5 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const boldSrc = bold ? `/api/site-font?weight=bold&v=${bold.version}` : '';
   const fallbackSrc = regularSrc || boldSrc;
   const fontCss = fallbackSrc ? `@font-face{font-family:'LouayCustom';src:url('${fallbackSrc}') format('${fontFormat(regular?.url || bold?.url || '')}');font-style:normal;font-weight:400 600;font-display:swap}${boldSrc ? `@font-face{font-family:'LouayCustom';src:url('${boldSrc}') format('${fontFormat(bold?.url || '')}');font-style:normal;font-weight:700 900;font-display:swap}` : ''}:root{--site-font:'LouayCustom',Arial,Tahoma,sans-serif}html,body,body *{font-family:var(--site-font)!important}button,input,textarea,select,optgroup,option{font-family:var(--site-font)!important}::placeholder{font-family:var(--site-font)!important}` : '';
-  return <html lang="ar" dir="rtl"><head>{fontCss && <style id="site-fonts" dangerouslySetInnerHTML={{ __html: fontCss }} />}<style id="storefront-critical" dangerouslySetInnerHTML={{ __html: criticalStorefrontCss }} /><link rel="stylesheet" href="/storefront-fallback.css?v=7" /></head><body>{children}<ChatGate /></body></html>;
+  return <html lang="ar" dir="rtl"><head>{fontCss && <style id="site-fonts" dangerouslySetInnerHTML={{ __html: fontCss }} />}<style id="storefront-critical" dangerouslySetInnerHTML={{ __html: criticalStorefrontCss }} /><link rel="stylesheet" href="/storefront-fallback.css?v=7" /></head><body>{children}<ChatGate /><Analytics /><SpeedInsights /></body></html>;
 }
