@@ -1,5 +1,7 @@
-import { createClient } from '@/lib/supabase/server';
+import { createPublicClient } from '@/lib/supabase/public';
 import ReviewsSection from '@/components/store/ReviewsSection';
+
+export const revalidate = 300;
 
 export default async function ProductLayout({
   children,
@@ -9,7 +11,7 @@ export default async function ProductLayout({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data: product } = await supabase
     .from('products')
     .select('id')
