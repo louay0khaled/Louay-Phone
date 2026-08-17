@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import StoreHeader from '@/components/store/StoreHeader';
-import { getCachedBrandDirectory } from '@/lib/storefront-data';
+import { getCachedBrandDirectory } from '@/lib/storefront-cache';
 
 export const revalidate = 600;
 
