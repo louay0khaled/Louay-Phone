@@ -83,4 +83,10 @@ a { color: inherit; text-decoration: none; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb { background: rgba(56,189,248,.28); border-radius: 999px; }
 @media (max-width: 640px) { .brand-rail { top: 64px; margin-bottom: 2.3rem; } .brand-tab { min-height: 2.5rem; padding: .55rem .78rem; font-size: .82rem; } }
+@media (pointer: coarse) {
+  .glass, .brand-rail__inner, .luxury-badge { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .luxury-card { box-shadow: 0 14px 45px rgba(0,0,0,.24); transition: border-color .2s ease, box-shadow .2s ease; }
+  .luxury-card:hover { transform: none; box-shadow: 0 14px 45px rgba(0,0,0,.24); }
+  .luxury-button:hover, .luxury-button-secondary:hover { transform: none; filter: none; }
+}
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
