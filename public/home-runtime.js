@@ -1,246 +1,458 @@
 (() => {
-  "use strict";
+  'use strict';
 
-  const $ = (selector, root = document) => root.querySelector(selector);
-  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const escapeHtml = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-  const goTo = (url) => { window.location.href = url; };
+  const BOOT_KEY = 'data-louay-home-runtime';
+  const root = document.documentElement;
+  const $ = (selector, scope = document) => scope.querySelector(selector);
+  const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const coarsePointer = window.matchMedia('(pointer: coarse)');
+
+  if (document.body?.hasAttribute(BOOT_KEY)) return;
+  document.body?.setAttribute(BOOT_KEY, 'true');
+
+  const escapeHtml = (value) => String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+
+  const safeNumber = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+  };
+
+  const formatSyp = (value) => safeNumber(value).toLocaleString('ar-SY');
+  const formatUsd = (value) => value ? `$${safeNumber(value).toLocaleString('en-US')}` : 'السعر عند الطلب';
+
+  function readRate(value) {
+    if (typeof value === 'number') return safeNumber(value);
+    if (typeof value === 'string') return safeNumber(value);
+    if (value && typeof value === 'object') return safeNumber(value.usd_to_syp ?? value.rate);
+    return 0;
+  }
+
+  function currentSyp(product, exchangeRate) {
+    const usd = safeNumber(product?.price_usd);
+    const stored = safeNumber(product?.price_syp);
+    const rate = readRate(exchangeRate);
+
+    // Store data uses full SYP amounts; the exchange-rate fallback is only used
+    // when it is clearly configured as a real SYP/USD rate.
+    if (stored > 0) return Math.round(stored);
+    if (usd > 0 && rate >= 1000) return Math.round(usd * rate);
+    return 0;
+  }
 
   function showToast(message) {
-    const toast = $("#toast"), toastText = $("#toastText");
+    const toast = $('#toast');
+    const toastText = $('#toastText');
     if (!toast || !toastText) return;
     toastText.textContent = message;
-    toast.classList.add("show");
-    window.setTimeout(() => toast.classList.remove("show"), 3200);
+    toast.classList.add('show');
+    window.clearTimeout(showToast.timer);
+    showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 2800);
   }
 
-  function currentSyp(priceUsd, storedSyp, exchangeRate) {
-    const usd = Number(priceUsd || 0);
-    const stored = Number(storedSyp || 0);
-    const rate = Number(exchangeRate?.usd_to_syp ?? exchangeRate?.rate ?? exchangeRate ?? 0);
-    if (usd > 0 && rate > 0) return Math.round(usd * rate);
-    return stored > 0 ? stored : 0;
+  function openChat() {
+    window.dispatchEvent(new Event('louay:open-chat'));
   }
 
-  function formatSyp(value) { return Number(value || 0).toLocaleString("ar-SY"); }
+  function setHeaderState() {
+    const header = $('#header');
+    if (!header) return;
+    header.classList.toggle('scrolled', window.scrollY > 35);
+  }
 
-  function bindNavigation() {
-    const menuBtn = $("#menuBtn"), navLinks = $("#navLinks");
-    if (menuBtn && navLinks) {
-      menuBtn.addEventListener("click", () => {
-        navLinks.classList.toggle("open");
-        const icon = menuBtn.querySelector("i");
-        if (icon) { icon.classList.toggle("fa-bars"); icon.classList.toggle("fa-xmark"); }
+  function setupHeader() {
+    const menuBtn = $('#menuBtn');
+    const navLinks = $('#navLinks');
+    if (menuBtn && navLinks && !menuBtn.dataset.bound) {
+      menuBtn.dataset.bound = 'true';
+      menuBtn.addEventListener('click', () => {
+        const open = navLinks.classList.toggle('open');
+        menuBtn.setAttribute('aria-expanded', String(open));
+        const icon = $('i', menuBtn);
+        if (icon) {
+          icon.classList.toggle('fa-bars', !open);
+          icon.classList.toggle('fa-xmark', open);
+        }
       });
-      $$("a", navLinks).forEach((link) => link.addEventListener("click", () => {
-        navLinks.classList.remove("open");
-        const icon = menuBtn.querySelector("i");
-        if (icon) { icon.classList.add("fa-bars"); icon.classList.remove("fa-xmark"); }
-      }));
     }
 
-    $$('a[href^="#"]').forEach((link) => link.addEventListener("click", (event) => {
-      const id = link.getAttribute("href");
-      if (!id || id === "#") return;
-      if ((link.textContent || "").includes("تواصل معنا")) return;
-      const target = document.querySelector(id);
-      if (!target) return;
-      event.preventDefault();
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-      history.replaceState(null, "", id);
-    }));
+    $$('a[href^="#"]').forEach((link) => {
+      if (link.dataset.bound || link.getAttribute('href') === '#') return;
+      link.dataset.bound = 'true';
+      link.addEventListener('click', (event) => {
+        const id = link.getAttribute('href');
+        const target = id ? document.querySelector(id) : null;
+        if (!target) return;
+        event.preventDefault();
+        navLinks?.classList.remove('open');
+        if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+        const offset = (document.querySelector('#header')?.getBoundingClientRect().height ?? 0) + 14;
+        window.scrollTo({ top: Math.max(0, target.offsetTop - offset), behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+        history.replaceState(null, '', id);
+      });
+    });
 
-    const header = $("#header");
-    const updateHeader = () => { if (header) header.classList.toggle("scrolled", window.scrollY > 35); };
-    window.addEventListener("scroll", updateHeader, { passive: true });
-    updateHeader();
+    $('.search-btn')?.addEventListener('click', () => { window.location.href = '/products'; });
+    $('.bag-btn')?.addEventListener('click', () => { window.location.href = '/products'; });
 
-    const searchBtn = $(".search-btn");
-    if (searchBtn) searchBtn.addEventListener("click", () => goTo("/products"));
-    const bagBtn = $(".bag-btn");
-    if (bagBtn) bagBtn.addEventListener("click", () => goTo("/products"));
+    window.addEventListener('scroll', setHeaderState, { passive: true });
+    setHeaderState();
   }
 
   function setupReveal() {
-    const revealElements = $$(".reveal");
-    if (!("IntersectionObserver" in window)) { revealElements.forEach((el) => el.classList.add("visible")); return; }
+    const elements = $$('.reveal');
+    if (!elements.length) return;
+    if (reducedMotion.matches || !('IntersectionObserver' in window)) {
+      elements.forEach((element) => element.classList.add('visible'));
+      return;
+    }
     const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => { if (entry.isIntersecting) { entry.target.classList.add("visible"); observer.unobserve(entry.target); } });
-    }, { threshold: 0.12 });
-    revealElements.forEach((el) => observer.observe(el));
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -8% 0px' });
+    elements.forEach((element) => observer.observe(element));
   }
 
   function setupActiveNav() {
-    const sections = $$("section[id], footer[id]"), navigationLinks = $$(".nav-links a");
-    const update = () => {
-      let currentSection = "home";
-      sections.forEach((section) => { if (window.scrollY >= section.offsetTop - 180) currentSection = section.id; });
-      navigationLinks.forEach((link) => link.classList.toggle("active", link.getAttribute("href") === `#${currentSection}`));
-    };
-    window.addEventListener("scroll", update, { passive: true });
-    update();
+    const links = $$('#navLinks a');
+    const sections = $$('main section[id]');
+    if (!links.length || !sections.length || !('IntersectionObserver' in window)) return;
+    const mapping = new Map();
+    links.forEach((link) => mapping.set(link.getAttribute('href'), link));
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        links.forEach((link) => link.classList.remove('active'));
+        mapping.get(`#${entry.target.id}`)?.classList.add('active');
+      });
+    }, { rootMargin: '-25% 0px -55% 0px', threshold: 0 });
+    sections.forEach((section) => observer.observe(section));
   }
 
   function setupSlider() {
-    const slider = $("#slider"), track = $("#slidesTrack"), dotsContainer = $("#sliderDots"), nextButton = $("#nextSlide"), previousButton = $("#prevSlide");
-    if (!slider || !track || !dotsContainer || !nextButton || !previousButton) return;
-    let currentSlide = 0, autoPlayTimer = null, touchStartX = 0, touchEndX = 0;
-    const getSlides = () => [...track.querySelectorAll(".slide")];
-    const createDots = () => {
-      const slides = getSlides(); dotsContainer.innerHTML = "";
-      slides.forEach((_, index) => {
-        const dot = document.createElement("button"); dot.className = "dot"; dot.setAttribute("aria-label", `الانتقال إلى الصورة ${index + 1}`); if (index === currentSlide) dot.classList.add("active");
-        dot.addEventListener("click", () => { currentSlide = index; updateSlider(); restartAutoPlay(); }); dotsContainer.appendChild(dot);
+    const slider = $('#slider');
+    const track = $('#slidesTrack');
+    const dots = $('#sliderDots');
+    const next = $('#nextSlide');
+    const previous = $('#prevSlide');
+    if (!slider || !track || !dots || !next || !previous || slider.dataset.bound) return;
+    slider.dataset.bound = 'true';
+
+    let current = 0;
+    let timer = 0;
+    let touchStart = null;
+    let paused = false;
+
+    const slides = () => $$('.slide', track);
+    const stop = () => { if (timer) window.clearInterval(timer); timer = 0; };
+    const start = () => {
+      stop();
+      if (paused || document.hidden || slides().length < 2) return;
+      timer = window.setInterval(() => goTo(current + 1), 5600);
+    };
+    const renderDots = () => {
+      const items = slides();
+      dots.replaceChildren();
+      items.forEach((_, index) => {
+        const dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = 'dot';
+        dot.setAttribute('aria-label', `الانتقال إلى العرض ${index + 1}`);
+        dot.addEventListener('click', () => { goTo(index); paused = true; stop(); window.setTimeout(() => { paused = false; start(); }, 2500); });
+        dots.appendChild(dot);
       });
     };
-    const updateSlider = () => {
-      const slides = getSlides(); if (!slides.length) return;
-      if (currentSlide >= slides.length) currentSlide = 0; if (currentSlide < 0) currentSlide = slides.length - 1;
-      track.style.transform = `translateX(-${currentSlide * 100}%)`;
-      slides.forEach((slide, index) => slide.classList.toggle("active", index === currentSlide));
-      [...dotsContainer.children].forEach((dot, index) => dot.classList.toggle("active", index === currentSlide));
-    };
-    const startAutoPlay = () => { window.clearInterval(autoPlayTimer); autoPlayTimer = window.setInterval(() => { currentSlide++; updateSlider(); }, 5200); };
-    const restartAutoPlay = () => startAutoPlay();
-    nextButton.addEventListener("click", () => { currentSlide++; updateSlider(); restartAutoPlay(); });
-    previousButton.addEventListener("click", () => { currentSlide--; updateSlider(); restartAutoPlay(); });
-    slider.addEventListener("mouseenter", () => window.clearInterval(autoPlayTimer));
-    slider.addEventListener("mouseleave", startAutoPlay);
-    slider.addEventListener("touchstart", (event) => { touchStartX = event.changedTouches[0].screenX; }, { passive: true });
-    slider.addEventListener("touchend", (event) => { touchEndX = event.changedTouches[0].screenX; const distance = touchEndX - touchStartX; if (Math.abs(distance) > 50) { if (distance < 0) currentSlide++; else currentSlide--; updateSlider(); restartAutoPlay(); } }, { passive: true });
-    createDots(); updateSlider(); startAutoPlay();
-  }
-
-  function setupFavoritesAndProducts() {
-    const favorites = new Set(JSON.parse(localStorage.getItem("louay-phone-favorites") || "[]"));
-    $$(".favorite-btn").forEach((button) => {
-      const key = button.closest(".product-card")?.dataset.productId;
-      if (key && favorites.has(key)) button.classList.add("active");
-      button.addEventListener("click", (event) => {
-        event.preventDefault(); event.stopPropagation(); if (!key) return;
-        if (favorites.has(key)) { favorites.delete(key); button.classList.remove("active"); showToast("تمت الإزالة من المفضلة"); }
-        else { favorites.add(key); button.classList.add("active"); showToast("تمت الإضافة إلى المفضلة"); }
-        localStorage.setItem("louay-phone-favorites", JSON.stringify([...favorites]));
+    const paint = () => {
+      const items = slides();
+      if (!items.length) return;
+      current = (current + items.length) % items.length;
+      track.style.transform = `translate3d(-${current * 100}%,0,0)`;
+      items.forEach((slide, index) => {
+        slide.classList.toggle('active', index === current);
+        slide.setAttribute('aria-hidden', String(index !== current));
       });
-    });
-    $$(".product-card").forEach((card) => {
-      const url = card.dataset.productUrl; if (!url) return;
-      card.addEventListener("click", (event) => { if (event.target.closest(".favorite-btn") || event.target.closest(".add-btn")) return; goTo(url); });
-    });
-    $$(".add-btn").forEach((button) => button.addEventListener("click", (event) => {
-      event.preventDefault(); event.stopPropagation(); const productUrl = button.closest(".product-card")?.dataset.productUrl;
-      if (productUrl) goTo(productUrl); else showToast("افتح تفاصيل الهاتف لإكمال الطلب.");
-    }));
-  }
+      Array.from(dots.children).forEach((dot, index) => {
+        dot.classList.toggle('active', index === current);
+        dot.setAttribute('aria-current', index === current ? 'true' : 'false');
+      });
+    };
+    function goTo(index) {
+      const length = slides().length;
+      if (!length) return;
+      current = (index + length) % length;
+      paint();
+      start();
+    }
 
-  function renderProducts(products, exchangeRate) {
-    const grid = $(".products-grid"); if (!grid || !Array.isArray(products) || !products.length) return;
-    grid.innerHTML = products.slice(0, 6).map((product, index) => {
-      const images = [...(product.product_images || [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-      const image = images.find((item) => item.is_primary) || images[0];
-      const priceSyp = currentSyp(product.price_usd, product.price_syp, exchangeRate);
-      const brand = product.brands?.name || "Louay Phone";
-      const badge = index === 0 ? "وصل حديثًا" : index === 1 ? "الأكثر طلبًا" : index === 2 ? "عرض خاص" : "اختيار مميز";
-      return `<article class="product-card reveal visible" data-product-id="${escapeHtml(product.id)}" data-product-url="/product/${escapeHtml(product.slug)}"><div class="product-image">${image?.url ? `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt_text || product.name)}">` : `<div style="height:100%;display:grid;place-items:center;color:#6e8490;padding:30px;text-align:center;">الصورة ستُضاف لاحقًا</div>`}<span class="product-badge">${badge}</span><button class="favorite-btn" aria-label="إضافة للمفضلة"><i class="fa-regular fa-heart"></i></button></div><div class="product-info"><span class="product-brand">${escapeHtml(brand)}</span><h3>${escapeHtml(product.name)}</h3><div class="product-specs"><span>جودة موثوقة</span><span>ضمان سنة</span>${product.installment_enabled ? "<span>تقسيط</span>" : "<span>5G</span>"}</div><div class="product-bottom"><div class="price">${priceSyp ? formatSyp(priceSyp) : "السعر عند الطلب"} <small>${product.price_usd ? `$${Number(product.price_usd).toLocaleString("en-US")}` : ""}</small></div><button class="add-btn" aria-label="فتح تفاصيل الهاتف"><i class="fa-solid fa-bag-shopping"></i></button></div></div></article>`;
-    }).join("");
-    setupFavoritesAndProducts();
+    next.addEventListener('click', () => { paused = false; goTo(current + 1); });
+    previous.addEventListener('click', () => { paused = false; goTo(current - 1); });
+    slider.addEventListener('mouseenter', () => { paused = true; stop(); });
+    slider.addEventListener('mouseleave', () => { paused = false; start(); });
+    slider.addEventListener('focusin', () => { paused = true; stop(); });
+    slider.addEventListener('focusout', (event) => { if (!slider.contains(event.relatedTarget)) { paused = false; start(); } });
+    slider.addEventListener('touchstart', (event) => { touchStart = event.changedTouches[0]?.clientX ?? null; paused = true; stop(); }, { passive: true });
+    slider.addEventListener('touchend', (event) => {
+      if (touchStart == null) return;
+      const distance = (event.changedTouches[0]?.clientX ?? touchStart) - touchStart;
+      touchStart = null;
+      if (Math.abs(distance) > 48) goTo(current + (distance < 0 ? 1 : -1));
+      paused = false;
+      window.setTimeout(start, 1500);
+    }, { passive: true });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else start(); });
+    window.addEventListener('keydown', (event) => {
+      if (!slider.contains(document.activeElement)) return;
+      if (event.key === 'ArrowLeft') { event.preventDefault(); goTo(current + 1); paused = true; stop(); }
+      if (event.key === 'ArrowRight') { event.preventDefault(); goTo(current - 1); paused = true; stop(); }
+    });
+
+    renderDots();
+    paint();
+    start();
   }
 
   function renderAssets(data) {
-    const logo = data?.assets?.logo;
-    if (logo?.url) {
-      $$(".logo").forEach((logoEl) => { logoEl.innerHTML = `<img src="${escapeHtml(logo.url)}" alt="Louay Phone" class="lp-admin-logo">`; });
+    const logoUrl = data?.assets?.logo?.url;
+    if (logoUrl) {
+      $$('.logo').forEach((logo) => {
+        if (logo.querySelector('.lp-admin-logo')) return;
+        const image = document.createElement('img');
+        image.className = 'lp-admin-logo';
+        image.src = logoUrl;
+        image.alt = 'Louay Phone';
+        image.decoding = 'async';
+        logo.replaceChildren(image);
+      });
     }
-    const slides = Array.isArray(data?.assets?.heroSlides) ? data.assets.heroSlides : [];
-    if (slides.length) {
-      const slideEls = $$("#slidesTrack .slide");
-      slides.slice(0, slideEls.length).forEach((asset, index) => { if (asset?.url && slideEls[index]) { const img = $("img", slideEls[index]); if (img) img.src = asset.url; } });
+
+    const hero = Array.isArray(data?.assets?.heroSlides) ? data.assets.heroSlides.filter((item) => item?.url) : [];
+    const track = $('#slidesTrack');
+    if (track && hero.length) {
+      const copy = [
+        ['تكنولوجيا بلا حدود', 'أناقة تسبق المستقبل', 'اكتشف مجموعة مختارة من أقوى الهواتف العالمية.'],
+        ['أحدث الإصدارات', 'قوة في كل تفصيل', 'أداء احترافي وتجربة استخدام فائقة السرعة.'],
+        ['اختيار Louay Phone', 'تميز لا يشبه الآخرين', 'هواتف أصلية بعناية تناسب أسلوب حياتك.'],
+      ];
+      track.innerHTML = hero.map((asset, index) => {
+        const text = copy[index % copy.length];
+        return `<article class="slide${index === 0 ? ' active' : ''}" aria-hidden="${index !== 0}" aria-roledescription="slide" aria-label="${index + 1} من ${hero.length}"><img src="${escapeHtml(asset.url)}" alt="${escapeHtml(text[1])}" loading="${index === 0 ? 'eager' : 'lazy'}" decoding="async"><div class="slide-content"><span class="slide-tag">${escapeHtml(text[0])}</span><h3>${escapeHtml(text[1])}</h3><p>${escapeHtml(text[2])}</p></div></article>`;
+      }).join('');
+      setupSlider();
+    }
+  }
+
+  function renderStats(stats) {
+    const statValues = [
+      [stats?.productCount, 'منتج متنوع'],
+      [stats?.brandCount, 'علامة تجارية'],
+      [stats?.reviewCount, 'تقييم عميل'],
+      [stats?.installmentCount, 'هاتف متاح للتقسيط'],
+    ];
+    $$('.stats-wrap .stat').forEach((stat, index) => {
+      const [value, label] = statValues[index] || [];
+      const strong = $('strong', stat);
+      const small = $('span', stat);
+      if (Number.isFinite(Number(value)) && strong) strong.textContent = `+${Number(value).toLocaleString('en-US')}`;
+      if (small && label) small.textContent = label;
+    });
+  }
+
+  function productCard(product, index, exchangeRate) {
+    const images = [...(product?.product_images ?? [])].sort((a, b) => safeNumber(a.position) - safeNumber(b.position));
+    const image = images.find((item) => item.is_primary) ?? images[0];
+    const priceSyp = currentSyp(product, exchangeRate);
+    const brand = product?.brands?.name || 'Louay Phone';
+    const badge = product?.installment_enabled ? 'تقسيط' : index === 0 ? 'وصل حديثًا' : index === 1 ? 'الأكثر طلبًا' : index === 2 ? 'عرض خاص' : 'اختيار مميز';
+    const url = product?.slug ? `/product/${encodeURIComponent(product.slug)}` : '/products';
+    return `<article class="product-card reveal visible" data-product-id="${escapeHtml(product.id)}" data-product-url="${escapeHtml(url)}"><div class="product-image">${image?.url ? `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt_text || product.name)}" loading="${index < 2 ? 'eager' : 'lazy'}" decoding="async">` : `<div style="height:100%;display:grid;place-items:center;color:#6e8490;padding:30px;text-align:center;">الصورة ستُضاف لاحقًا</div>`}<span class="product-badge">${badge}</span><button type="button" class="favorite-btn" aria-label="إضافة ${escapeHtml(product.name)} للمفضلة"><i class="fa-regular fa-heart"></i></button></div><div class="product-info"><span class="product-brand">${escapeHtml(brand)}</span><h3>${escapeHtml(product.name || 'هاتف')}</h3><div class="product-specs"><span>جودة موثوقة</span>${product.installment_enabled ? '<span>تقسيط</span>' : '<span>ضمان سنة</span>'}</div><div class="product-bottom"><div class="price">${priceSyp ? `${formatSyp(priceSyp)} <small>ل.س</small>` : 'السعر عند الطلب'} <small>${formatUsd(product.price_usd)}</small></div><button type="button" class="add-btn" aria-label="فتح تفاصيل الهاتف"><i class="fa-solid fa-arrow-left"></i></button></div></div></article>`;
+  }
+
+  function renderProducts(products, exchangeRate) {
+    const grid = $('.products-grid');
+    if (!grid) return;
+    if (!Array.isArray(products) || !products.length) {
+      grid.innerHTML = '<div class="lp-home-empty">لا توجد هواتف منشورة حاليًا.</div>';
+      return;
+    }
+    grid.innerHTML = products.slice(0, 6).map((product, index) => productCard(product, index, exchangeRate)).join('');
+  }
+
+  function patchStaticCopy() {
+    const replacements = [
+      ['أضف عنوان متجر Louay Phone هنا', 'التواصل عبر المحادثة المباشرة'],
+      ['+000 000 000 000', 'المحادثة المباشرة'],
+      ['contact@louayphone.com', 'تواصل معنا عبر الموقع'],
+    ];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((node) => {
+      let text = node.nodeValue || '';
+      replacements.forEach(([from, to]) => { if (text.includes(from)) text = text.replaceAll(from, to); });
+      node.nodeValue = text;
+    });
+
+    $$('.category-card').forEach((card) => {
+      if (card.getAttribute('href') === '#') card.setAttribute('href', '/products');
+    });
+
+    $$('.socials a[href="#"]').forEach((link) => {
+      link.setAttribute('href', '/products');
+      link.removeAttribute('aria-label');
+    });
+  }
+
+  function setupProductDelegation() {
+    const grid = $('.products-grid');
+    if (!grid || grid.dataset.bound) return;
+    grid.dataset.bound = 'true';
+
+    let favorites = new Set();
+    try {
+      const stored = JSON.parse(localStorage.getItem('louay-phone-favorites') || '[]');
+      favorites = new Set(Array.isArray(stored) ? stored.map(String) : []);
+    } catch { favorites = new Set(); }
+
+    const paintFavorites = () => $$('.favorite-btn', grid).forEach((button) => {
+      const id = button.closest('.product-card')?.dataset.productId;
+      if (!id) return;
+      button.classList.toggle('active', favorites.has(String(id)));
+      button.setAttribute('aria-pressed', String(favorites.has(String(id))));
+    };
+
+    grid.addEventListener('click', (event) => {
+      const target = event.target;
+      const favorite = target.closest('.favorite-btn');
+      const add = target.closest('.add-btn');
+      const card = target.closest('.product-card');
+      if (!card) return;
+
+      if (favorite) {
+        event.preventDefault();
+        event.stopPropagation();
+        const id = String(card.dataset.productId || '');
+        if (!id) return;
+        if (favorites.has(id)) { favorites.delete(id); showToast('تمت الإزالة من المفضلة'); }
+        else { favorites.add(id); showToast('تمت الإضافة إلى المفضلة'); }
+        try { localStorage.setItem('louay-phone-favorites', JSON.stringify([...favorites])); } catch {}
+        paintFavorites();
+        return;
+      }
+
+      if (add) {
+        event.preventDefault();
+        event.stopPropagation();
+        window.location.href = card.dataset.productUrl || '/products';
+        return;
+      }
+
+      if (event.button !== undefined && event.button !== 0) return;
+      window.location.href = card.dataset.productUrl || '/products';
+    });
+
+    paintFavorites();
+  }
+
+  function setupChatTriggers() {
+    ['.btn-secondary[href="#about"]', '.contact-list', '.about-content a[href="#contact"]'].forEach(() => {});
+    $$('a[href="#contact"], .socials a').forEach((link) => {
+      if (link.dataset.chatBound) return;
+      const text = link.textContent || '';
+      if (!text.includes('تواصل') && !link.matches('.socials a')) return;
+      link.dataset.chatBound = 'true';
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        openChat();
+      });
+    });
+  }
+
+  function addScrollMotion() {
+    const rootHome = $('.hero');
+    if (!rootHome || reducedMotion.matches || coarsePointer.matches) return;
+    let frame = 0;
+    let pointer = null;
+    const home = document.body;
+    const update = () => {
+      frame = 0;
+      if (!pointer) return;
+      const x = (pointer.clientX / window.innerWidth - 0.5) * 2;
+      const y = (pointer.clientY / window.innerHeight - 0.5) * 2;
+      home.style.setProperty('--pointer-x', x.toFixed(2));
+      home.style.setProperty('--pointer-y', y.toFixed(2));
+      pointer = null;
+    };
+    const move = (event) => {
+      pointer = event;
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    window.addEventListener('pointermove', move, { passive: true });
+  }
+
+  async function loadLiveData() {
+    const response = await fetch('/api/home-data', { cache: 'no-store', headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`home-data ${response.status}`);
+    return response.json();
+  }
+
+  async function boot() {
+    setupHeader();
+    setupReveal();
+    setupActiveNav();
+    patchStaticCopy();
+    setupProductDelegation();
+    setupChatTriggers();
+    setupSlider();
+    addScrollMotion();
+
+    try {
+      const data = await loadLiveData();
+      renderAssets(data);
+      renderStats(data?.stats);
+      renderProducts(data?.products, data?.exchangeRate);
+      setupProductDelegation();
+      setupReveal();
+      applyUploadedFonts(data);
+      connectAdminUploadTrigger();
+      setupChatTriggers();
+      setupSlider();
+    } catch (error) {
+      console.warn('تعذر تحميل بيانات المتجر الديناميكية:', error);
+      connectAdminUploadTrigger();
     }
   }
 
   function applyUploadedFonts(data) {
-    const regular = data?.assets?.fontRegular, bold = data?.assets?.fontBold;
-    if (!regular && !bold) return;
-    const style = document.createElement("style"); style.id = "louay-admin-fonts";
-    const parts = [];
-    const format = (asset) => String(asset?.url || "").toLowerCase().split("?")[0].endsWith(".otf") ? "opentype" : "truetype";
-    if (regular?.version) parts.push(`@font-face{font-family:'LouayAdmin';src:url('/api/site-font?weight=regular&v=${encodeURIComponent(regular.version)}') format('${format(regular)}');font-style:normal;font-weight:400 600;font-display:swap}`);
-    if (bold?.version) parts.push(`@font-face{font-family:'LouayAdmin';src:url('/api/site-font?weight=bold&v=${encodeURIComponent(bold.version)}') format('${format(bold)}');font-style:normal;font-weight:700 900;font-display:swap}`);
-    parts.push(`body,body *{font-family:'LouayAdmin','Tajawal',sans-serif!important}.fa,.fas,.far,.fab,.fa-solid,.fa-regular,.fa-brands{font-family:'Font Awesome 6 Free'!important}.fa-brands{font-family:'Font Awesome 6 Brands'!important}.lp-admin-logo{max-width:180px;max-height:52px;width:auto;height:auto;object-fit:contain;filter:drop-shadow(0 0 18px rgba(69,223,255,.18))}`);
-    style.textContent = parts.join(""); document.head.appendChild(style);
+    const regular = data?.assets?.fontRegular;
+    const bold = data?.assets?.fontBold;
+    if (!regular?.version && !bold?.version) return;
+    let style = $('#louay-admin-fonts');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'louay-admin-fonts';
+      document.head.appendChild(style);
+    }
+    const src = (weight, version) => version ? `/api/site-font?weight=${weight}&v=${encodeURIComponent(version)}` : '';
+    const regularSrc = src('regular', regular?.version);
+    const boldSrc = src('bold', bold?.version);
+    style.textContent = `${regularSrc ? `@font-face{font-family:'LouayAdmin';src:url('${regularSrc}') format('opentype');font-weight:400 600;font-style:normal;font-display:swap}` : ''}${boldSrc ? `@font-face{font-family:'LouayAdmin';src:url('${boldSrc}') format('opentype');font-weight:700 900;font-style:normal;font-display:swap}` : ''}body,body *{font-family:'LouayAdmin','Tajawal',sans-serif!important}.fa,.fas,.far,.fab,.fa-solid,.fa-regular{font-family:'Font Awesome 6 Free'!important}.fa-brands{font-family:'Font Awesome 6 Brands'!important}`;
   }
 
   function connectAdminUploadTrigger() {
-    const upload = $("#openUpload"); if (!upload) return;
-    upload.addEventListener("click", (event) => { event.preventDefault(); goTo("/admin/settings"); });
+    const upload = $('#openUpload');
+    if (!upload || upload.dataset.bound) return;
+    upload.dataset.bound = 'true';
+    upload.addEventListener('click', (event) => { event.preventDefault(); window.location.href = '/admin/settings'; });
   }
 
-  function setupChat() {
-    if (document.querySelector(".lp-static-chat")) return;
-    const style = document.createElement("style");
-    style.textContent = `.lp-static-chat{position:fixed;right:18px;bottom:18px;z-index:5000;font-family:inherit}.lp-static-chat .lp-chat-fab{width:58px;height:58px;border:1px solid rgba(120,226,255,.35);border-radius:50%;background:rgba(2,12,18,.82);color:#a8f3ff;backdrop-filter:blur(16px);box-shadow:0 18px 45px rgba(0,0,0,.4),0 0 35px rgba(69,223,255,.13);display:grid;place-items:center;cursor:pointer;transition:.3s}.lp-static-chat .lp-chat-fab:hover{transform:translateY(-3px);border-color:#45dfff;color:#45dfff}.lp-static-chat .lp-chat-panel{display:none;position:absolute;right:0;bottom:72px;width:min(370px,calc(100vw - 30px));height:min(590px,calc(100dvh - 100px));overflow:hidden;border:1px solid rgba(120,226,255,.18);border-radius:24px;background:linear-gradient(145deg,rgba(8,19,28,.98),rgba(2,7,12,.98));box-shadow:0 30px 100px rgba(0,0,0,.55)}.lp-static-chat.open .lp-chat-panel{display:flex;flex-direction:column}.lp-static-chat .lp-chat-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid rgba(120,226,255,.12);background:linear-gradient(135deg,rgba(69,223,255,.16),rgba(0,0,0,.18))}.lp-static-chat .lp-chat-head strong{font-size:16px}.lp-static-chat .lp-chat-head small{display:block;margin-top:4px;color:#93aab6;font-size:10px}.lp-static-chat .lp-chat-close{background:none;border:0;color:#dffbff;font-size:24px;cursor:pointer}.lp-static-chat .lp-chat-body{flex:1;overflow:auto;padding:14px;background:radial-gradient(circle at 50% 0,rgba(69,223,255,.06),transparent 45%)}.lp-static-chat .lp-chat-start{display:grid;gap:10px;place-items:center;text-align:center;padding:28px 12px;color:#93aab6}.lp-static-chat .lp-chat-start input{width:100%;padding:12px 13px;border:1px solid rgba(120,226,255,.13);border-radius:12px;background:rgba(255,255,255,.04);color:#fff;outline:none}.lp-static-chat .lp-chat-start button,.lp-static-chat .lp-chat-send{border:0;border-radius:12px;background:linear-gradient(135deg,#a8f3ff,#45dfff,#31a8ff);color:#001218;font-weight:900;cursor:pointer}.lp-static-chat .lp-chat-start button{width:100%;padding:12px}.lp-static-chat .lp-chat-messages{display:grid;gap:9px}.lp-static-chat .lp-chat-msg{max-width:82%;padding:10px 12px;border-radius:15px;font-size:13px;line-height:1.65;white-space:pre-wrap}.lp-static-chat .lp-chat-msg.user{margin-right:auto;background:#45dfff;color:#001218;border-bottom-right-radius:5px}.lp-static-chat .lp-chat-msg.admin{margin-left:auto;background:#0f2432;color:#e8fbff;border:1px solid rgba(120,226,255,.12);border-bottom-left-radius:5px}.lp-static-chat .lp-chat-compose{display:flex;gap:8px;padding:10px;border-top:1px solid rgba(120,226,255,.1);background:#03090e}.lp-static-chat .lp-chat-compose input{min-width:0;flex:1;padding:11px 12px;border:1px solid rgba(120,226,255,.13);border-radius:12px;background:rgba(255,255,255,.04);color:#fff;outline:none}.lp-static-chat .lp-chat-send{width:58px}`;
-    document.head.appendChild(style);
-
-    const root = document.createElement("div");
-    root.className = "lp-static-chat";
-    root.innerHTML = `<div class="lp-chat-panel" dir="rtl"><div class="lp-chat-head"><div><strong>تواصل معنا</strong><small>دعم مباشر من Louay Phone</small></div><button class="lp-chat-close" aria-label="إغلاق">×</button></div><div class="lp-chat-body"><div class="lp-chat-start"><div style="font-size:34px">💬</div><div>أرسل استفسارك وسنرد عليك مباشرة.</div><input class="lp-chat-name" placeholder="اسمك"><button class="lp-chat-start-btn">بدء المحادثة</button></div><div class="lp-chat-messages"></div></div><div class="lp-chat-compose"><input class="lp-chat-input" placeholder="اكتب رسالتك..."><button class="lp-chat-send">إرسال</button></div></div><button class="lp-chat-fab" aria-label="تواصل معنا"><i class="fa-solid fa-comment-dots"></i></button>`;
-    document.body.appendChild(root);
-
-    const tokenKey = "louay_phone_chat_token";
-    let token = localStorage.getItem(tokenKey) || "";
-    const panel = $(".lp-chat-panel", root), startBox = $(".lp-chat-start", root), messagesBox = $(".lp-chat-messages", root), nameInput = $(".lp-chat-name", root), startBtn = $(".lp-chat-start-btn", root), input = $(".lp-chat-input", root), fab = $(".lp-chat-fab", root);
-    let poll = null;
-
-    const renderMessages = (messages) => {
-      messagesBox.innerHTML = (messages || []).map((message) => `<div class="lp-chat-msg ${message.senderType === "user" ? "user" : "admin"}">${escapeHtml(message.text || "")}</div>`).join("");
-      const body = $(".lp-chat-body", root); body.scrollTop = body.scrollHeight;
-    };
-    const refresh = async () => {
-      if (!token) return;
-      const res = await fetch("/api/chat/messages/get", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({token}), cache:"no-store" });
-      if (!res.ok) return;
-      const data = await res.json(); startBox.style.display = "none"; messagesBox.style.display = "grid"; input.disabled = false; renderMessages(data.messages || []);
-    };
-    const ensureSession = async () => {
-      if (token) return token;
-      const res = await fetch("/api/chat/session", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:nameInput.value.trim() || undefined}) });
-      const data = await res.json(); if (!res.ok) throw new Error(data.error || "تعذر فتح المحادثة");
-      token = data.token; localStorage.setItem(tokenKey, token); return token;
-    };
-    const send = async () => {
-      const text = input.value.trim(); if (!text || !token) return;
-      const res = await fetch("/api/chat/messages", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({token,text,name:nameInput.value.trim() || undefined}) });
-      const data = await res.json(); if (!res.ok) { showToast(data.error || "تعذر إرسال الرسالة"); return; }
-      input.value = ""; await refresh();
-    };
-    const open = async () => {
-      root.classList.add("open");
-      if (!token) { startBox.style.display = "grid"; messagesBox.style.display = "none"; input.disabled = true; }
-      else { startBox.style.display = "none"; messagesBox.style.display = "grid"; input.disabled = false; await refresh(); }
-      if (!poll) poll = window.setInterval(() => refresh().catch(()=>{}), 2000);
-    };
-
-    fab.addEventListener("click", open);
-    $(".lp-chat-close", root).addEventListener("click", () => root.classList.remove("open"));
-    startBtn.addEventListener("click", async () => { try { await ensureSession(); await refresh(); } catch (error) { showToast(error.message || "تعذر فتح المحادثة"); } });
-    $(".lp-chat-send", root).addEventListener("click", send);
-    input.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); send(); } });
-
-    $$('a[href="#contact"]').forEach((link) => {
-      if ((link.textContent || "").includes("تواصل معنا")) link.addEventListener("click", (event) => { event.preventDefault(); open(); });
-    });
-  }
-
-  async function boot() {
-    bindNavigation(); setupSlider(); setupReveal(); setupActiveNav(); setupFavoritesAndProducts(); connectAdminUploadTrigger(); setupChat();
-    try {
-      const response = await fetch("/api/home-data", { cache: "no-store", headers: { "cache-control": "no-cache" } });
-      if (!response.ok) throw new Error(`home-data ${response.status}`);
-      const data = await response.json(); renderAssets(data); applyUploadedFonts(data); renderProducts(data.products || [], data.exchangeRate);
-      const count = data?.stats?.productCount; const firstStat = $(".stats-wrap .stat strong");
-      if (firstStat && Number.isFinite(Number(count))) firstStat.textContent = `+${Number(count).toLocaleString("en-US")}`;
-    } catch (error) { console.warn("تعذر تحميل بيانات المتجر الديناميكية:", error); }
-  }
-
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once:true }); else boot();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
 })();
