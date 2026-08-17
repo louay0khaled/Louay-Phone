@@ -17,7 +17,8 @@ const bodySchema = z.object({
   website: z.string().trim().max(200).optional().default(''),
 });
 
-const recentRequests = new Map<string, number>();
+type RateEntry = { timestamps: number[] };
+const recentRequests = new Map<string, RateEntry>();
 const RATE_WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 5;
 
@@ -29,14 +30,20 @@ function getClientKey(req: Request) {
 
 function checkRateLimit(key: string) {
   const now = Date.now();
-  for (const [storedKey, timestamp] of recentRequests) {
-    if (now - timestamp > RATE_WINDOW_MS) recentRequests.delete(storedKey);
+  for (const [storedKey, entry] of recentRequests) {
+    entry.timestamps = entry.timestamps.filter((timestamp) => now - timestamp < RATE_WINDOW_MS);
+    if (entry.timestamps.length === 0) recentRequests.delete(storedKey);
   }
 
-  const existing = recentRequests.get(key);
-  if (existing && now - existing < RATE_WINDOW_MS) return false;
-  recentRequests.set(key, now);
-  return true;
+  const entry = recentRequests.get(key) ?? { timestamps: [] };
+  if (entry.timestamps.length >= MAX_REQUESTS_PER_WINDOW) {
+    const oldest = entry.timestamps[0] ?? now;
+    return Math.max(1, Math.ceil((RATE_WINDOW_MS - (now - oldest)) / 1000));
+  }
+
+  entry.timestamps.push(now);
+  recentRequests.set(key, entry);
+  return 0;
 }
 
 function readExchangeRate(value: unknown) {
@@ -64,11 +71,11 @@ export async function POST(req: Request) {
     const payload = bodySchema.parse(await req.json());
     if (payload.website) return NextResponse.json({ error: 'تعذر إرسال الطلب.' }, { status: 400 });
 
-    const clientKey = getClientKey(req);
-    if (!checkRateLimit(clientKey)) {
+    const retryAfter = checkRateLimit(getClientKey(req));
+    if (retryAfter > 0) {
       return NextResponse.json(
-        { error: 'تم استلام عدة محاولات خلال وقت قصير. أعد المحاولة بعد دقيقة.' },
-        { status: 429, headers: { 'Retry-After': '60' } },
+        { error: 'تم استلام عدة محاولات خلال وقت قصير. أعد المحاولة بعد قليل.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } },
       );
     }
 
@@ -126,8 +133,8 @@ export async function POST(req: Request) {
     let ticketCode: string | null = null;
 
     if (payload.chatToken) {
-      const { data: conversation } = await db.from('conversations').select('id,ticket_code,customer_id').eq('visitor_token', payload.chatToken).maybeSingle();
-      if (conversation) {
+      const { data: conversation } = await db.from('conversations').select('id,ticket_code,customer_id,status').eq('visitor_token', payload.chatToken).maybeSingle();
+      if (conversation && conversation.status !== 'closed') {
         conversationId = conversation.id;
         ticketCode = conversation.ticket_code;
         await db.from('conversations').update({ customer_id: customerId, visitor_name: payload.name, last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversation.id);
@@ -135,7 +142,7 @@ export async function POST(req: Request) {
     }
 
     if (!conversationId) {
-      const { data: existing } = await db.from('conversations').select('id,ticket_code').eq('customer_id', customerId).is('telegram_chat_id', null).maybeSingle();
+      const { data: existing } = await db.from('conversations').select('id,ticket_code,status').eq('customer_id', customerId).is('telegram_chat_id', null).neq('status', 'closed').maybeSingle();
       if (existing) {
         conversationId = existing.id;
         ticketCode = existing.ticket_code;
@@ -151,6 +158,8 @@ export async function POST(req: Request) {
       }
     }
 
+    if (!conversationId) throw new Error('Conversation could not be created');
+
     const { data: order, error: orderError } = await db.from('orders').insert({
       customer_id: customerId,
       product_id: product.id,
@@ -164,7 +173,8 @@ export async function POST(req: Request) {
     }).select('id,created_at').single();
     if (orderError) throw orderError;
 
-    await db.from('conversations').update({ last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversationId);
+    const { error: conversationUpdateError } = await db.from('conversations').update({ last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversationId);
+    if (conversationUpdateError) console.error('Conversation update after order failed:', conversationUpdateError);
 
     const ticketForTelegram = ticketCode ?? '—';
     const orderText = `<b>🛍️ تم تأكيد طلب جديد</b>\n<b>رقم الطلب:</b> <code>${escapeHtml(order.id)}</code>\n<b>التذكرة:</b> <code>${escapeHtml(ticketForTelegram)}</code>\n<b>الهاتف:</b> ${escapeHtml(product.name)}\n<b>الزبون:</b> ${escapeHtml(payload.name)}\n<b>الهاتف للتواصل:</b> ${escapeHtml(normalizedPhone)}\n<b>العنوان:</b> ${escapeHtml(payload.address)}${install ? `\n<b>التقسيط:</b> ${install.months} أشهر\n<b>الدفعة الأولى:</b> ${Math.round(install.firstPayment).toLocaleString('ar-SY')} ل.س\n<b>القسط الشهري:</b> ${Math.round(install.monthly).toLocaleString('ar-SY')} ل.س` : ''}\n<b>الملاحظات:</b> ${escapeHtml(payload.notes || '—')}\n<b>السعر الإجمالي:</b> ${Math.round(totalPrice).toLocaleString('ar-SY')} ل.س\n\n<b>للرد على المحادثة:</b> <code>/reply ${escapeHtml(ticketForTelegram)} نص الرد</code>`;
@@ -181,7 +191,9 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ ok: true, orderId: order.id, ticketId: ticketCode, telegramNotified });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'تعذر إرسال الطلب.' }, { status: 400 });
+  } catch (error) {
+    if (error instanceof z.ZodError) return NextResponse.json({ error: 'تحقق من بيانات الطلب المدخلة.' }, { status: 400 });
+    console.error('Order API failed:', error);
+    return NextResponse.json({ error: 'تعذر إرسال الطلب حاليًا. حاول مرة أخرى.' }, { status: 500 });
   }
 }
