@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createPublicClient } from '@/lib/supabase/public';
 import StoreHeader from '@/components/store/StoreHeader';
 
 export const revalidate = 600;
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ProductsPage() {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const [{ data: products }, { data: brands }, { data: assets }] = await Promise.all([
     supabase.from('products').select('id,brand_id').eq('is_active', true),
     supabase.from('brands').select('id,name,slug').order('name'),
@@ -43,7 +43,7 @@ export default async function ProductsPage() {
         return <Link key={brand.id} href={`/products/brand/${brand.slug}`} className="brand-directory-card group luxury-card">
           <div className="brand-directory-card__glow" />
           <div className="relative flex min-h-44 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[.025] p-6">
-            {brandImage ? <Image src={brandImage} alt={brand.name} width={320} height={176} sizes="(max-width: 640px) 80vw, (max-width: 1024px) 40vw, 28vw" className="h-28 w-auto object-contain transition duration-500 group-hover:scale-105" /> : <span className="text-3xl font-black tracking-tight text-white/90">{brand.name}</span>}
+            {brandImage ? <Image src={brandImage} alt={brand.name} width={320} height={160} sizes="(max-width: 640px) 70vw, 320px" className="max-h-28 w-auto max-w-[80%] object-contain transition duration-500 group-hover:scale-105" /> : <span className="text-3xl font-black tracking-tight text-white/90">{brand.name}</span>}
           </div>
           <div className="relative mt-5 flex items-center justify-between gap-4">
             <div><h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">{brand.name}</h2><p className="mt-1 text-xs text-slate-500">{counts.get(brand.id) ?? 0} منتج</p></div>
