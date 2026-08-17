@@ -9,7 +9,16 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  images: { formats: ['image/avif', 'image/webp'] },
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'gmpogiiqydoxoclxcvwh.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },
