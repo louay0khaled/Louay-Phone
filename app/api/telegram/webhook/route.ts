@@ -23,5 +23,5 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  return NextResponse.json({ ok: true, service: 'Louay Phone Telegram webhook' });
+  return new NextResponse(null, { status: 405, headers: { Allow: 'POST' } });
 }
