@@ -5,10 +5,27 @@ import { getAdminChatId, sendTelegramMessage, escapeHtml } from '@/lib/telegram'
 
 export const dynamic = 'force-dynamic';
 const schema = z.object({ token: z.string().min(20).max(128), text: z.string().trim().min(1).max(2000), name: z.string().trim().min(2).max(80).optional() });
+const recent = new Map<string, { startedAt: number; count: number }>();
+const WINDOW_MS = 60_000;
+const MAX_PER_WINDOW = 20;
+
+function allowed(token: string) {
+  const now = Date.now();
+  const state = recent.get(token);
+  if (!state || now - state.startedAt >= WINDOW_MS) {
+    recent.set(token, { startedAt: now, count: 1 });
+    return true;
+  }
+  if (state.count >= MAX_PER_WINDOW) return false;
+  state.count += 1;
+  recent.set(token, state);
+  return true;
+}
 
 export async function POST(request: Request) {
   try {
     const body = schema.parse(await request.json());
+    if (!allowed(body.token)) return NextResponse.json({ error: 'أرسلت رسائل كثيرة، حاول بعد قليل.' }, { status: 429, headers: { 'Retry-After': '60' } });
     const supabase = createAdminClient() as any;
     const { data: conversation, error: conversationError } = await supabase.from('conversations').select('id,ticket_code,visitor_name,status').eq('visitor_token', body.token).maybeSingle();
     if (conversationError) throw conversationError;
