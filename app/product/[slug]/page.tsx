@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
-import { createPublicClient } from '@/lib/supabase/public';
+import { getCachedProduct } from '@/lib/storefront-data';
 import OrderForm from '@/components/store/OrderForm';
 import StoreHeader from '@/components/store/StoreHeader';
 
@@ -24,8 +24,7 @@ function specLabel(key: string) {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
-  const supabase = createPublicClient();
-  const { data: rawData } = await supabase.from('products').select('name,slug,model,description,price_usd,price_syp,brands(name),product_images(url,alt_text,is_primary,position)').eq('slug', slug).eq('is_active', true).maybeSingle();
+  const { product: rawData } = await getCachedProduct(slug);
   const data = rawData as any;
   if (!data) return { title: 'المنتج غير موجود' };
   const image = [...(data.product_images ?? [])].sort((a: any, b: any) => (Number(a.position) || 0) - (Number(b.position) || 0))[0];
@@ -42,19 +41,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProductDetails({ params }: { params: Promise<{ slug: string }> }) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
-  const supabase = createPublicClient();
-  const [{ data: rawProduct, error }, { data: exchangeRateRow }] = await Promise.all([
-    supabase.from('products').select('id,name,slug,model,description,price_usd,price_syp,stock_status,installment_enabled,specs,brands(name),product_images(id,url,alt_text,is_primary,position),installment_plans(id,months,first_payment_type,first_payment_value,total_price,monthly_amount,is_active)').eq('slug', slug).eq('is_active', true).maybeSingle(),
-    supabase.from('settings').select('value').eq('key', 'exchange_rate').maybeSingle(),
-  ]);
-  if (error) console.error('Product details lookup failed:', error);
+  const { product: rawProduct, exchangeRate: exchangeRateValue } = await getCachedProduct(slug);
   const p = rawProduct as any;
   if (!p) notFound();
 
   const images = [...(p.product_images ?? [])].sort((a: any, b: any) => (Number(a.position) || 0) - (Number(b.position) || 0));
   const plans = (p.installment_plans ?? []).filter((x: any) => x.is_active);
   const specs = Object.entries((p.specs ?? {}) as Record<string, unknown>).filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '');
-  const priceSyp = currentSyp(p.price_usd, p.price_syp, exchangeRateRow?.value);
+  const priceSyp = currentSyp(p.price_usd, p.price_syp, exchangeRateValue);
   const inStock = p.stock_status === 'in_stock';
   const primaryImage = images[0];
   const jsonLd = {
