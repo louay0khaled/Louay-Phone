@@ -8,6 +8,7 @@ export default async function StoreHeader({ compact = false }: { compact?: boole
   return (
     <>
       <link rel="stylesheet" href="/premium-storefront.css?v=2" />
+      <link rel="stylesheet" href="/louay-ui.css?v=1" />
       <header className="store-nav">
         <div className={`store-nav__inner ${compact ? 'store-nav__inner--compact' : ''}`}>
           <Link href="/" className="store-nav__brand" aria-label="Louay Phone">
