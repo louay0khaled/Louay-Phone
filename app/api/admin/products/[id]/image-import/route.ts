@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { saveProductImage } from '@/lib/product-image-storage';
+import { saveProductImage, saveProductImageDataUrl } from '@/lib/product-image-storage';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,7 +27,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!product) return NextResponse.json({ error: 'المنتج غير موجود.' }, { status: 404 });
 
   try {
-    const result = await saveProductImage(id, product.name, imageUrl, body?.pageUrl);
+    const result = /^data:image\//i.test(imageUrl)
+      ? await saveProductImageDataUrl(id, product.name, imageUrl, body?.pageUrl || 'MobileAPI')
+      : await saveProductImage(id, product.name, imageUrl, body?.pageUrl);
     revalidatePath(`/product/${product.slug}`, 'page');
     revalidatePath('/products', 'page');
     revalidatePath('/', 'page');
