@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useState } from 'react';
 import { RefreshCw, Search, Check, ExternalLink } from 'lucide-react';
 
@@ -47,7 +46,7 @@ export default function ProductImageAutoSearch({ productId }: { productId: strin
     {message && <p className="mt-4 rounded-xl border border-white/[.07] bg-black/10 p-3 text-sm text-slate-300">{message}</p>}
     {candidates.length > 0 && <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {candidates.map((candidate) => <div key={candidate.imageUrl} className="overflow-hidden rounded-2xl border border-white/10 bg-black/10">
-        <div className="relative aspect-[.82] bg-[#0b1016]"><Image src={candidate.imageUrl} alt={candidate.name} fill sizes="240px" className="object-contain p-4" unoptimized /></div>
+        <div className="relative aspect-[.82] bg-[#0b1016]"><img src={candidate.imageUrl} alt={candidate.name} loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-contain p-4" /></div>
         <div className="p-3"><p className="truncate text-sm font-black">{candidate.name}</p><a href={candidate.pageUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-sky-300">المصدر <ExternalLink size={12}/></a><button type="button" onClick={() => void importImage(candidate)} disabled={importing !== null} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-sky-400 px-3 py-2.5 text-xs font-black text-slate-950 disabled:opacity-50">{importing === candidate.imageUrl ? <RefreshCw size={14} className="animate-spin"/> : <Check size={14}/>} {importing === candidate.imageUrl ? 'جارٍ الاستيراد…' : 'استخدم هذه الصورة'}</button></div>
       </div>)}
     </div>}
