@@ -31,12 +31,11 @@ export async function POST(request: Request) {
     .limit(1000);
   if (error) return NextResponse.json({ error: 'تعذر قراءة المنتجات.' }, { status: 500 });
 
-  const missing = (products ?? [])
-    .filter((product: any) => !(product.product_images?.length))
-    .slice(0, limit);
-
+  const missing = (products ?? []).filter((product: any) => !(product.product_images?.length));
+  const queue = missing.slice(0, limit);
   const results: any[] = [];
-  for (const product of missing) {
+
+  for (const product of queue) {
     const brand = Array.isArray(product.brands) ? product.brands[0]?.name : product.brands?.name;
     const query = buildProductSearchQuery(brand, product.name, product.model);
     try {
@@ -52,11 +51,12 @@ export async function POST(request: Request) {
     }
   }
 
-  const { count: remaining } = await admin
-    .from('products')
-    .select('id', { count: 'exact', head: true })
-    .eq('is_active', true)
-    .not('id', 'in', `(${(products ?? []).filter((p: any) => p.product_images?.length).map((p: any) => `'${p.id}'`).join(',') || "''"})`);
-
-  return NextResponse.json({ processed: results.length, results, remainingMissing: remaining ?? null }, { headers: { 'Cache-Control': 'no-store' } });
+  const imported = results.filter((result) => result.status === 'imported').length;
+  return NextResponse.json({
+    processed: results.length,
+    imported,
+    notFound: results.filter((result) => result.status === 'not_found').length,
+    results,
+    remainingMissing: Math.max(0, missing.length - imported),
+  }, { headers: { 'Cache-Control': 'no-store' } });
 }
