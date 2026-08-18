@@ -30,7 +30,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const result = await saveProductImage(id, product.name, imageUrl, body?.pageUrl);
     revalidatePath(`/product/${product.slug}`, 'page');
     revalidatePath('/products', 'page');
-    revalidatePath(`/products/brand/${encodeURIComponent('')}`, 'page');
     revalidatePath('/', 'page');
     return NextResponse.json({ ok: true, ...result }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
