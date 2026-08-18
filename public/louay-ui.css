@@ -1,0 +1,16 @@
+/* Louay Phone — final interaction polish */
+.mobile-app-bar{display:none}
+.mobile-app-bar__item{min-width:72px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:transparent;color:#8d99a5;font-size:10px;font-weight:800;cursor:pointer;padding:8px 10px;border-radius:14px;transition:color .18s ease,background-color .18s ease,transform .18s ease}
+.mobile-app-bar__item:active{transform:scale(.97)}
+.mobile-app-bar__item--primary{color:#dff7ff;background:linear-gradient(180deg,rgba(119,215,255,.13),rgba(119,215,255,.05));border:1px solid rgba(119,215,255,.16)}
+.mobile-app-bar__item:focus-visible{outline:2px solid #77d7ff;outline-offset:2px}
+@media(max-width:640px){
+  body{padding-bottom:78px}
+  .mobile-app-bar{position:fixed;left:10px;right:10px;bottom:10px;z-index:1600;display:flex;justify-content:space-around;align-items:center;padding:7px 8px;border:1px solid rgba(255,255,255,.11);border-radius:20px;background:rgba(7,10,14,.88);box-shadow:0 20px 60px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(18px) saturate(125%);-webkit-backdrop-filter:blur(18px) saturate(125%)}
+  .store-nav{z-index:1500}
+  .premium-hero__product{animation:none}
+}
+@media(pointer:coarse){.mobile-app-bar__item:hover{transform:none!important}.mobile-app-bar{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}}
+@media(prefers-reduced-motion:reduce){.mobile-app-bar__item{transition:none}}
+/* Prevent mobile content from hiding behind fixed controls */
+@media(max-width:640px){.premium-bottom{padding-bottom:92px}.lp-modal__panel{margin-bottom:6px}}
