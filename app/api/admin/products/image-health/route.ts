@@ -14,9 +14,17 @@ async function getAdmin() {
   return admin ? supabase : null;
 }
 
-export async function POST() {
+function storagePathFromPublicUrl(url: string) {
+  const marker = '/storage/v1/object/public/product-images/';
+  const index = url.indexOf(marker);
+  return index >= 0 ? decodeURIComponent(url.slice(index + marker.length).split('?')[0]) : null;
+}
+
+export async function POST(request: Request) {
   const supabase = await getAdmin();
   if (!supabase) return NextResponse.json({ error: 'غير مصرح.' }, { status: 401 });
+  const body = await request.json().catch(() => ({})) as { repair?: boolean };
+  const repair = Boolean(body.repair);
   const admin = supabase as any;
   const { data: products, error } = await admin
     .from('products')
@@ -34,10 +42,16 @@ export async function POST() {
         const bytes = new Uint8Array(await response.arrayBuffer());
         if (!detectImageType(bytes)) throw new Error('ملف غير صالح');
       } catch (e) {
-        invalid.push({ productId: product.id, productName: product.name, imageId: image.id, url: image.url, error: e instanceof Error ? e.message : 'غير صالح' });
+        const bad = { productId: product.id, productName: product.name, imageId: image.id, url: image.url, error: e instanceof Error ? e.message : 'غير صالح' };
+        invalid.push(bad);
+        if (repair) {
+          await admin.from('product_images').delete().eq('id', image.id);
+          const path = storagePathFromPublicUrl(image.url);
+          if (path) await admin.storage.from('product-images').remove([path]);
+        }
       }
     }
   }
 
-  return NextResponse.json({ checkedProducts: products?.length ?? 0, invalid, invalidCount: invalid.length }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ checkedProducts: products?.length ?? 0, invalid, invalidCount: invalid.length, repaired: repair ? invalid.length : 0 }, { headers: { 'Cache-Control': 'no-store' } });
 }
