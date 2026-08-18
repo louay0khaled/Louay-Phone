@@ -1,12 +1,12 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Smartphone, CreditCard, ShoppingBag, MessageCircle, Star, Settings, Home } from 'lucide-react';
+import { LayoutDashboard, Smartphone, CreditCard, ShoppingBag, MessageCircle, Star, Settings, Home, Images } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 
 const links = [
   ['لوحة التحكم', '/admin', LayoutDashboard], ['واجهة المتجر', '/admin/settings', Home], ['المنتجات', '/admin/products', Smartphone],
-  ['التقسيط', '/admin/installments', CreditCard], ['الطلبات', '/admin/orders', ShoppingBag],
+  ['صور المنتجات', '/admin/images', Images], ['التقسيط', '/admin/installments', CreditCard], ['الطلبات', '/admin/orders', ShoppingBag],
   ['المحادثات', '/admin/messages', MessageCircle], ['التقييمات', '/admin/reviews', Star], ['الإعدادات', '/admin/settings', Settings],
 ] as const;
 
@@ -25,7 +25,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
       <nav className="space-y-1.5">{links.map(([label, href, Icon], index) => <Link key={`${href}-${label}`} href={href} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition duration-200 ${index === 1 ? 'border border-sky-300/10 bg-sky-400/[.06] text-sky-200' : 'text-slate-300 hover:bg-white/[.04] hover:text-white'}`}><Icon size={18}/>{label}</Link>)}</nav>
       <div className="mt-8 rounded-2xl border border-white/[.08] bg-white/[.025] p-4"><p className="text-xs text-slate-500">المسؤول الحالي</p><p className="mt-1 font-bold">{admin.name}</p><p className="mt-1 text-xs text-sky-300">{admin.role}</p></div>
     </aside>
-    <div className="sticky top-0 z-30 border-b border-white/[.08] bg-[#090c10]/90 px-4 py-3 backdrop-blur-xl lg:hidden"><div className="flex items-center justify-between gap-3"><Link href="/admin" className="font-black">Louay <span className="text-sky-300">Phone</span></Link><Link href="/admin/settings" className="rounded-xl border border-sky-300/15 bg-sky-400/[.06] px-3 py-2 text-xs font-black text-sky-200">واجهة المتجر</Link></div></div>
+    <div className="sticky top-0 z-30 border-b border-white/[.08] bg-[#090c10]/90 px-4 py-3 backdrop-blur-xl lg:hidden"><div className="flex items-center justify-between gap-3"><Link href="/admin" className="font-black">Louay <span className="text-sky-300">Phone</span></Link><Link href="/admin/images" className="rounded-xl border border-sky-300/15 bg-sky-400/[.06] px-3 py-2 text-xs font-black text-sky-200">صور المنتجات</Link></div></div>
     <main className="min-h-screen lg:mr-72">{children}</main>
   </div>;
 }
