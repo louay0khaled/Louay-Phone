@@ -18,15 +18,15 @@ export default function AdminLogin() {
     window.location.href = '/admin';
   }
 
-  return <main className="min-h-screen bg-[#030712] text-white luxury-grid flex items-center justify-center px-5">
-    <form onSubmit={submit} className="glass glow w-full max-w-md rounded-3xl p-8">
-      <div className="mb-8 text-center"><div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-400 font-extrabold text-slate-950">LP</div><h1 className="text-2xl font-extrabold">دخول الإدارة</h1><p className="mt-2 text-sm text-slate-400">لوحة تحكم Louay Phone</p></div>
+  return <main className="admin-login luxury-grid">
+    <form onSubmit={submit} className="glass glow">
+      <div className="mb-8 text-center"><div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-sky-200/20 bg-gradient-to-br from-sky-200 to-sky-500 font-extrabold text-slate-950">LP</div><h1 className="text-2xl font-extrabold tracking-tight">دخول الإدارة</h1><p className="mt-2 text-sm text-slate-400">Louay Phone Control Center</p></div>
       <label className="mb-2 block text-sm font-semibold">البريد الإلكتروني</label>
-      <input dir="ltr" type="email" required value={email} onChange={e=>setEmail(e.target.value)} className="mb-5 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 outline-none focus:border-sky-400" placeholder="admin@example.com" />
+      <input dir="ltr" type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)} className="mb-5 w-full px-4 py-3 outline-none" placeholder="admin@example.com" />
       <label className="mb-2 block text-sm font-semibold">كلمة المرور</label>
-      <input dir="ltr" type="password" required value={password} onChange={e=>setPassword(e.target.value)} className="mb-5 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 outline-none focus:border-sky-400" />
-      {error && <p className="mb-4 rounded-xl border border-red-400/20 bg-red-400/5 p-3 text-sm text-red-300">{error}</p>}
-      <button disabled={loading} className="w-full rounded-xl bg-sky-400 py-3.5 font-extrabold text-slate-950 disabled:opacity-50">{loading ? 'جارٍ الدخول...' : 'تسجيل الدخول'}</button>
+      <input dir="ltr" type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)} className="mb-5 w-full px-4 py-3 outline-none" />
+      {error && <p className="mb-4 rounded-xl border border-red-400/20 bg-red-400/5 p-3 text-sm text-red-300" role="alert">{error}</p>}
+      <button type="submit" disabled={loading} className="w-full py-3.5 disabled:opacity-50">{loading ? 'جارٍ الدخول...' : 'تسجيل الدخول'}</button>
     </form>
   </main>;
 }
