@@ -1,12 +1,13 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { getSiteAssets } from '@/lib/site-config';
+import MobileAppBar from './MobileAppBar';
 
 export default async function StoreHeader({ compact = false }: { compact?: boolean }) {
   const assets = await getSiteAssets();
   return (
     <>
-      <link rel="stylesheet" href="/premium-storefront.css?v=1" />
+      <link rel="stylesheet" href="/premium-storefront.css?v=2" />
       <header className="store-nav">
         <div className={`store-nav__inner ${compact ? 'store-nav__inner--compact' : ''}`}>
           <Link href="/" className="store-nav__brand" aria-label="Louay Phone">
@@ -24,6 +25,7 @@ export default async function StoreHeader({ compact = false }: { compact?: boole
           <Link href="/products" className="store-nav__cta">تسوّق الآن</Link>
         </div>
       </header>
+      <MobileAppBar />
     </>
   );
 }
