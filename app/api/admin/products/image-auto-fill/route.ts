@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { buildProductSearchQuery, discoverProductImages } from '@/lib/product-image-discovery';
 import { saveProductImage } from '@/lib/product-image-storage';
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
 
   const { data: products, error } = await admin
     .from('products')
-    .select('id,name,model,brands(name),product_images(id)')
+    .select('id,name,model,slug,brands(name),product_images(id)')
     .eq('is_active', true)
     .order('created_at', { ascending: false })
     .limit(1000);
@@ -40,13 +41,17 @@ export async function POST(request: Request) {
     const brand = Array.isArray(product.brands) ? product.brands[0]?.name : product.brands?.name;
     const query = buildProductSearchQuery(brand, product.name, product.model);
     try {
-      const candidates = await discoverProductImages(query);
-      if (!candidates.length) {
-        results.push({ id: product.id, name: product.name, status: 'not_found', query });
+      const candidates = await discoverProductImages(query, { brand, name: product.name, model: product.model });
+      const best = candidates.sort((a, b) => b.confidence - a.confidence)[0];
+      if (!best || best.confidence < 0.62) {
+        results.push({ id: product.id, name: product.name, status: 'not_found', confidence: best?.confidence ?? 0, query });
         continue;
       }
-      const result = await saveProductImage(product.id, product.name, candidates[0].imageUrl, candidates[0].pageUrl);
-      results.push({ id: product.id, name: product.name, status: 'imported', query, source: result.source });
+      const result = await saveProductImage(product.id, product.name, best.imageUrl, best.pageUrl);
+      revalidatePath(`/product/${product.slug}`, 'page');
+      revalidatePath('/products', 'page');
+      revalidatePath('/', 'page');
+      results.push({ id: product.id, name: product.name, status: 'imported', query, confidence: best.confidence, matchedName: best.name, source: result.source });
     } catch (e) {
       results.push({ id: product.id, name: product.name, status: 'error', query, error: e instanceof Error ? e.message : 'تعذر الاستيراد' });
     }
