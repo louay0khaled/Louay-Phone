@@ -19,8 +19,9 @@ export async function POST(request: Request) {
   const supabase = await getAdminClient();
   if (!supabase) return NextResponse.json({ error: 'غير مصرح.' }, { status: 401 });
 
-  const body = await request.json().catch(() => ({})) as { limit?: number };
+  const body = await request.json().catch(() => ({})) as { limit?: number; offset?: number };
   const limit = Math.min(Math.max(Number(body.limit) || 3, 1), 5);
+  const offset = Math.max(Number(body.offset) || 0, 0);
   const admin = supabase as any;
 
   const { data: products, error } = await admin
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: 'تعذر قراءة المنتجات.' }, { status: 500 });
 
   const missing = (products ?? []).filter((product: any) => !(product.product_images?.length));
-  const queue = missing.slice(0, limit);
+  const queue = missing.slice(offset, offset + limit);
   const results: any[] = [];
 
   for (const product of queue) {
@@ -51,12 +52,13 @@ export async function POST(request: Request) {
     }
   }
 
-  const imported = results.filter((result) => result.status === 'imported').length;
   return NextResponse.json({
     processed: results.length,
-    imported,
+    imported: results.filter((result) => result.status === 'imported').length,
     notFound: results.filter((result) => result.status === 'not_found').length,
     results,
-    remainingMissing: Math.max(0, missing.length - imported),
+    totalMissing: missing.length,
+    nextOffset: offset + queue.length,
+    remainingMissing: Math.max(0, missing.length - results.filter((result) => result.status === 'imported').length),
   }, { headers: { 'Cache-Control': 'no-store' } });
 }
