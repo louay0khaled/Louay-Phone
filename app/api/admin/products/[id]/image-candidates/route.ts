@@ -23,6 +23,6 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   if (error || !product) return NextResponse.json({ error: 'المنتج غير موجود.' }, { status: 404 });
   const brand = Array.isArray(product.brands) ? product.brands[0]?.name : product.brands?.name;
   const query = buildProductSearchQuery(brand, product.name, product.model);
-  const candidates = await discoverProductImages(query);
+  const candidates = await discoverProductImages(query, { brand, name: product.name, model: product.model });
   return NextResponse.json({ query, candidates }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
