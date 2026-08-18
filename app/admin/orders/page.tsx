@@ -11,6 +11,8 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'ملغي' },
 ] as const;
 
+type OrderStatus = (typeof STATUS_OPTIONS)[number]['value'];
+
 function statusLabel(value: string) {
   return STATUS_OPTIONS.find((item) => item.value === value)?.label ?? value;
 }
@@ -38,10 +40,10 @@ async function updateOrderStatus(formData: FormData) {
   'use server';
   const orderId = String(formData.get('order_id') ?? '').trim();
   const status = String(formData.get('status') ?? '').trim();
-  const allowed = new Set(STATUS_OPTIONS.map((item) => item.value));
-  if (!orderId || !allowed.has(status)) redirect('/admin/orders?error=invalid');
+  const allowedStatus = STATUS_OPTIONS.find((item) => item.value === status)?.value;
+  if (!orderId || !allowedStatus) redirect('/admin/orders?error=invalid');
   const supabase = await requireAdmin();
-  const { error } = await supabase.from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId);
+  const { error } = await supabase.from('orders').update({ status: allowedStatus, updated_at: new Date().toISOString() }).eq('id', orderId);
   if (error) redirect('/admin/orders?error=save');
   revalidatePath('/admin/orders');
   redirect('/admin/orders?saved=1');
