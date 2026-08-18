@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 
 const links = [
   ['لوحة التحكم', '/admin', LayoutDashboard],
-  ['واجهة المتجر', '/admin/settings', Home],
+  ['واجهة المتجر', '/', Home],
   ['المنتجات', '/admin/products', Smartphone],
   ['صور المنتجات', '/admin/images', Images],
   ['التقسيط', '/admin/installments', CreditCard],
@@ -30,7 +30,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
     redirect('/admin/login?error=unauthorized');
   }
 
-  const activeHref = links.find(([, href]) => href === '/admin' ? pathname === '/admin' : pathname.startsWith(href))?.[1];
+  const activeHref = links.find(([, href]) => href === '/' ? false : href === '/admin' ? pathname === '/admin' : pathname.startsWith(href))?.[1];
 
   return (
     <div dir="rtl" className="admin-shell min-h-screen text-white">
@@ -44,7 +44,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
           {links.map(([label, href, Icon]) => {
             const active = activeHref === href;
             return (
-              <Link key={href} href={href} aria-current={active ? 'page' : undefined} className={`flex min-h-12 items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-extrabold transition ${active ? 'border-sky-300/15 bg-sky-300/[.07] text-sky-100 shadow-[inset_3px_0_0_rgba(120,216,255,.65)]' : 'border-transparent text-slate-300 hover:bg-white/[.035] hover:text-white'}`}>
+              <Link key={href} href={href} aria-current={active ? 'page' : undefined} target={href === '/' ? '_blank' : undefined} rel={href === '/' ? 'noreferrer' : undefined} className={`flex min-h-12 items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-extrabold transition ${active ? 'border-sky-300/15 bg-sky-300/[.07] text-sky-100 shadow-[inset_3px_0_0_rgba(120,216,255,.65)]' : 'border-transparent text-slate-300 hover:bg-white/[.035] hover:text-white'}`}>
                 <Icon size={18} strokeWidth={2.1}/><span>{label}</span>
               </Link>
             );
@@ -52,9 +52,6 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
         </nav>
 
         <div className="mt-auto space-y-3">
-          <Link href="/" target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-2xl border border-white/[.08] bg-white/[.025] px-4 py-3 text-sm font-bold text-slate-300 transition hover:border-sky-300/15 hover:bg-sky-300/[.04] hover:text-white">
-            <span>فتح المتجر</span><ExternalLink size={16}/>
-          </Link>
           <div className="rounded-2xl border border-white/[.08] bg-white/[.025] p-4">
             <p className="text-xs text-slate-500">المسؤول الحالي</p>
             <p className="mt-1 font-bold">{admin.name}</p>
@@ -66,7 +63,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
       <div className="sticky top-0 z-30 border-b border-white/[.08] bg-[#090c10]/92 px-4 py-3 backdrop-blur-xl lg:hidden">
         <div className="flex items-center justify-between gap-3">
           <Link href="/admin" className="font-black">Louay <span className="text-sky-300">Phone</span></Link>
-          <Link href="/admin/settings" className="rounded-xl border border-white/10 bg-white/[.03] px-3 py-2 text-xs font-black text-slate-200">الواجهة</Link>
+          <div className="flex items-center gap-2"><Link href="/" target="_blank" rel="noreferrer" className="rounded-xl border border-white/10 bg-white/[.03] px-3 py-2 text-xs font-black text-slate-200">المتجر</Link><Link href="/admin/orders" className="rounded-xl border border-sky-300/10 bg-sky-300/[.05] px-3 py-2 text-xs font-black text-sky-200">الطلبات</Link></div>
         </div>
       </div>
 
