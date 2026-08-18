@@ -1,0 +1,3 @@
+export default function OrdersLoading() {
+  return <section className="p-5 lg:p-10"><div className="mx-auto max-w-6xl animate-pulse"><div className="h-3 w-32 rounded-full bg-white/10"/><div className="mt-4 h-9 w-52 rounded-xl bg-white/10"/><div className="mt-3 h-4 w-full max-w-2xl rounded-full bg-white/[.06]"/><div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="lp-surface h-24 rounded-2xl"/>)}</div><div className="mt-5 h-20 rounded-3xl bg-white/[.04]"/><div className="mt-5 overflow-hidden rounded-[1.5rem] border border-white/10">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-40 border-b border-white/[.05] bg-white/[.02]"/>)}</div></div></section>;
+}
