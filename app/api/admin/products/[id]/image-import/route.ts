@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { saveProductImage } from '@/lib/product-image-storage';
 
@@ -22,11 +23,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!imageUrl) return NextResponse.json({ error: 'رابط الصورة مطلوب.' }, { status: 400 });
 
   const supabase = await createClient();
-  const { data: product } = await supabase.from('products').select('id,name').eq('id', id).maybeSingle();
+  const { data: product } = await supabase.from('products').select('id,name,slug').eq('id', id).maybeSingle();
   if (!product) return NextResponse.json({ error: 'المنتج غير موجود.' }, { status: 404 });
 
   try {
     const result = await saveProductImage(id, product.name, imageUrl, body?.pageUrl);
+    revalidatePath(`/product/${product.slug}`, 'page');
+    revalidatePath('/products', 'page');
+    revalidatePath(`/products/brand/${encodeURIComponent('')}`, 'page');
+    revalidatePath('/', 'page');
     return NextResponse.json({ ok: true, ...result }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'تعذر استيراد الصورة.' }, { status: 422 });
