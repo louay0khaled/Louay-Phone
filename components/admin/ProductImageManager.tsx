@@ -28,18 +28,19 @@ export default function ProductImageManager() {
   async function fillBatch() {
     setRunning(true); setResults([]); setMessage('جاري تعبئة الصور الصحيحة على دفعات صغيرة…');
     const all: Result[] = [];
+    let offset = 0;
     try {
-      for (let pass = 0; pass < 25; pass += 1) {
+      for (let pass = 0; pass < 40; pass += 1) {
         const response = await fetch('/api/admin/products/image-auto-fill', {
-          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ limit: 3 }), cache: 'no-store',
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ limit: 3, offset }), cache: 'no-store',
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'تعذر تعبئة الصور.');
         all.push(...(data.results ?? [])); setResults([...all]);
-        const imported = Number(data.imported ?? 0);
-        const processed = Number(data.processed ?? 0);
+        offset = Number(data.nextOffset ?? offset + 3);
         setMessage(`تمت معالجة ${all.length} منتجًا — أضيفت ${all.filter((x) => x.status === 'imported').length} صورة.`);
-        if (!processed || !imported || data.remainingMissing === 0) break;
+        if (!Number(data.processed)) break;
+        if (offset >= Number(data.totalMissing ?? 0) + 3) break;
       }
     } catch (error) { setMessage(error instanceof Error ? error.message : 'تعذر تعبئة الصور.'); }
     finally { setRunning(false); }
