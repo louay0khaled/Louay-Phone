@@ -16,36 +16,14 @@ export function detectImageType(bytes: Uint8Array) {
   return '';
 }
 
-export async function downloadValidProductImage(imageUrl: string) {
-  const parsed = new URL(imageUrl);
-  const allowedHosts = new Set(['fdn2.gsmarena.com', 'fdn.gsmarena.com']);
-  if (!allowedHosts.has(parsed.hostname)) throw new Error('مصدر الصورة غير مسموح.');
-
-  const source = await fetch(imageUrl, {
-    headers: {
-      'user-agent': 'Mozilla/5.0 (compatible; LouayPhoneImageBot/2.0)',
-      accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-      referer: 'https://www.gsmarena.com/',
-    },
-    cache: 'no-store',
-    redirect: 'follow',
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!source.ok) throw new Error(`تعذر تنزيل الصورة (${source.status}).`);
-
-  const bytes = new Uint8Array(await source.arrayBuffer());
-  if (bytes.byteLength > 8 * 1024 * 1024) throw new Error('الصورة أكبر من الحد المسموح.');
-  const contentType = detectImageType(bytes);
-  if (!contentType) throw new Error('المصدر لم يُرجع ملف صورة حقيقيًا.');
-  return { bytes: Buffer.from(bytes), contentType };
-}
-
-export async function saveProductImage(productId: string, productName: string, imageUrl: string, pageUrl?: string) {
+async function insertStoredImage(productId: string, productName: string, bytes: Buffer, contentType: string, source: string) {
   const admin = createAdminClient() as any;
-  const { bytes, contentType } = await downloadValidProductImage(imageUrl);
-  const ext = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
+  if (bytes.byteLength > 8 * 1024 * 1024) throw new Error('الصورة أكبر من الحد المسموح.');
+  const actualType = detectImageType(bytes);
+  if (!actualType || actualType !== contentType) throw new Error('ملف الصورة غير صالح.');
+  const ext = actualType === 'image/png' ? 'png' : actualType === 'image/webp' ? 'webp' : 'jpg';
   const path = `${productId}/import-${Date.now()}-${crypto.randomUUID()}.${ext}`;
-  const { error: uploadError } = await admin.storage.from('product-images').upload(path, bytes, { contentType, cacheControl: '31536000', upsert: false });
+  const { error: uploadError } = await admin.storage.from('product-images').upload(path, bytes, { contentType: actualType, cacheControl: '31536000', upsert: false });
   if (uploadError) throw uploadError;
 
   const { data: publicUrl } = admin.storage.from('product-images').getPublicUrl(path);
@@ -65,6 +43,43 @@ export async function saveProductImage(productId: string, productName: string, i
     await admin.storage.from('product-images').remove([path]);
     throw insertError;
   }
+  return { row, source };
+}
 
-  return { row, source: pageUrl || imageUrl };
+export async function downloadValidProductImage(imageUrl: string) {
+  const parsed = new URL(imageUrl);
+  const allowedHosts = new Set(['fdn2.gsmarena.com', 'fdn.gsmarena.com']);
+  if (!allowedHosts.has(parsed.hostname)) throw new Error('مصدر الصورة غير مسموح.');
+
+  const source = await fetch(imageUrl, {
+    headers: {
+      'user-agent': 'Mozilla/5.0 (compatible; LouayPhoneImageBot/3.0)',
+      accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      referer: 'https://www.gsmarena.com/',
+    },
+    cache: 'no-store',
+    redirect: 'follow',
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!source.ok) throw new Error(`تعذر تنزيل الصورة (${source.status}).`);
+  const bytes = new Uint8Array(await source.arrayBuffer());
+  const contentType = detectImageType(bytes);
+  if (!contentType) throw new Error('المصدر لم يُرجع ملف صورة حقيقيًا.');
+  return { bytes: Buffer.from(bytes), contentType };
+}
+
+function decodeDataUrl(value: string) {
+  const match = value.match(/^data:(image\/(?:jpeg|png|webp));base64,([a-z0-9+/=\r\n]+)$/i);
+  if (!match) throw new Error('صيغة صورة MobileAPI غير مدعومة.');
+  return { contentType: match[1].toLowerCase(), bytes: Buffer.from(match[2].replace(/\s+/g, ''), 'base64') };
+}
+
+export async function saveProductImage(productId: string, productName: string, imageUrl: string, pageUrl?: string) {
+  const { bytes, contentType } = await downloadValidProductImage(imageUrl);
+  return insertStoredImage(productId, productName, bytes, contentType, pageUrl || imageUrl);
+}
+
+export async function saveProductImageDataUrl(productId: string, productName: string, dataUrl: string, source = 'MobileAPI') {
+  const { bytes, contentType } = decodeDataUrl(dataUrl);
+  return insertStoredImage(productId, productName, bytes, contentType, source);
 }
