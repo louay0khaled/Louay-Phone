@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { RefreshCw, Search, Check, ExternalLink, Sparkles } from 'lucide-react';
+import { RefreshCw, Search, Check, ExternalLink, Sparkles, Database } from 'lucide-react';
 
 type Candidate = { name: string; pageUrl: string; imageUrl: string; source: string; confidence?: number; matchedQuery?: string };
 
@@ -9,6 +9,7 @@ export default function ProductImageAutoSearch({ productId }: { productId: strin
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState('');
 
   async function search() {
@@ -20,6 +21,7 @@ export default function ProductImageAutoSearch({ productId }: { productId: strin
       const ranked = [...(data.candidates ?? [])].sort((a, b) => Number(b.confidence ?? 0) - Number(a.confidence ?? 0));
       setCandidates(ranked);
       if (!ranked.length) setMessage('لم نجد صورة موثوقة لهذا المنتج تلقائيًا.');
+      else setMessage(`المصدر الفعلي: ${data.source ?? '—'} — ${ranked.length} مرشحًا.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'تعذر البحث.'); }
     finally { setLoading(false); }
   }
@@ -39,6 +41,17 @@ export default function ProductImageAutoSearch({ productId }: { productId: strin
     finally { setImporting(null); }
   }
 
+  async function syncSpecs() {
+    setSyncing(true); setMessage('جاري مطابقة الهاتف واستيراد المواصفات المنظمة…');
+    try {
+      const response = await fetch(`/api/admin/products/${productId}/device-sync`, { method: 'POST', cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'تعذر استيراد المواصفات.');
+      setMessage(`تمت مطابقة «${data.matchedName}» واستيراد ${Object.keys(data.specs ?? {}).length} حقلًا من المواصفات.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'تعذر استيراد المواصفات.'); }
+    finally { setSyncing(false); }
+  }
+
   function confidenceMeta(value: number | undefined) {
     const score = Math.round((Number(value ?? 0)) * 100);
     if (score >= 90) return { label: `مطابقة قوية ${score}%`, tone: 'border-emerald-300/20 bg-emerald-400/10 text-emerald-200' };
@@ -47,15 +60,15 @@ export default function ProductImageAutoSearch({ productId }: { productId: strin
   }
 
   return <div className="mt-5 rounded-3xl border border-sky-300/10 bg-sky-400/[.025] p-5">
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div><span className="text-[11px] font-black uppercase tracking-[.16em] text-sky-300">SMART IMAGE MATCHER</span><h3 className="mt-2 font-black">استكشاف صور الهاتف تلقائيًا</h3><p className="mt-1 text-xs leading-6 text-slate-500">يجرّب عدة صيغ لاسم الهاتف، يطابق النتائج مع الماركة والموديل، ثم يعرض المرشحات قبل الحفظ.</p></div>
-      <button type="button" onClick={() => void search()} disabled={loading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 text-sm font-black text-sky-200 transition hover:bg-sky-400/15 disabled:opacity-50"><Search size={17}/>{loading ? 'جارٍ البحث…' : 'بحث ذكي'}</button>
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div><span className="text-[11px] font-black uppercase tracking-[.16em] text-sky-300">SMART DEVICE DATA</span><h3 className="mt-2 font-black">استكشاف الهاتف والصور والمواصفات</h3><p className="mt-1 text-xs leading-6 text-slate-500">نستخدم MobileAPI للبحث المرن والصور والمواصفات، ثم نستخدم GSMArena كبديل عند الحاجة. كل البيانات المهمة تُحفظ داخل متجرك.</p></div>
+      <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void search()} disabled={loading || syncing} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 text-sm font-black text-sky-200 transition hover:bg-sky-400/15 disabled:opacity-50"><Search size={17}/>{loading ? 'جارٍ البحث…' : 'بحث ذكي'}</button><button type="button" onClick={() => void syncSpecs()} disabled={loading || syncing} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[.05] px-4 text-sm font-black text-slate-200 disabled:opacity-50"><Database size={17}/>{syncing ? 'جارٍ الاستيراد…' : 'استيراد المواصفات'}</button></div>
     </div>
     {message && <p className="mt-4 rounded-xl border border-white/[.07] bg-black/10 p-3 text-sm text-slate-300">{message}</p>}
     {candidates.length > 0 && <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {candidates.map((candidate) => { const meta = confidenceMeta(candidate.confidence); return <div key={candidate.imageUrl} className="overflow-hidden rounded-2xl border border-white/10 bg-black/10">
         <div className="relative aspect-[.82] bg-[#0b1016]"><img src={candidate.imageUrl} alt={candidate.name} loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-contain p-4" /><div className={`absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.tone}`}><Sparkles size={11}/>{meta.label}</div></div>
-        <div className="p-3"><p className="truncate text-sm font-black">{candidate.name}</p>{candidate.matchedQuery && <p className="mt-1 truncate text-[10px] text-slate-600">بحث: {candidate.matchedQuery}</p>}<a href={candidate.pageUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-sky-300">المصدر <ExternalLink size={12}/></a><button type="button" onClick={() => void importImage(candidate)} disabled={importing !== null} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-sky-400 px-3 py-2.5 text-xs font-black text-slate-950 disabled:opacity-50">{importing === candidate.imageUrl ? <RefreshCw size={14} className="animate-spin"/> : <Check size={14}/>} {importing === candidate.imageUrl ? 'جارٍ الاستيراد…' : 'استخدم هذه الصورة'}</button></div>
+        <div className="p-3"><p className="truncate text-sm font-black">{candidate.name}</p>{candidate.matchedQuery && <p className="mt-1 truncate text-[10px] text-slate-600">بحث: {candidate.matchedQuery}</p>}<p className="mt-1 text-[10px] text-slate-600">المصدر: {candidate.source}</p><a href={candidate.pageUrl.startsWith('http') ? candidate.pageUrl : '#'} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-sky-300">المصدر <ExternalLink size={12}/></a><button type="button" onClick={() => void importImage(candidate)} disabled={importing !== null} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-sky-400 px-3 py-2.5 text-xs font-black text-slate-950 disabled:opacity-50">{importing === candidate.imageUrl ? <RefreshCw size={14} className="animate-spin"/> : <Check size={14}/>} {importing === candidate.imageUrl ? 'جارٍ الاستيراد…' : 'استخدم هذه الصورة'}</button></div>
       </div>; })}
     </div>}
   </div>;
