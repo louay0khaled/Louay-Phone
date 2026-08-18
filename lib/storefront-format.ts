@@ -16,7 +16,7 @@ export function formatSyp(value: unknown) {
 
 export function formatUsd(value: unknown) {
   const amount = Number(value || 0);
-  return amount > 0 ? `$${amount.toLocaleString('en-US')}` : '';
+  return amount > 0 ? amount.toLocaleString('en-US') : '';
 }
 
 export function sortedProductImages(images: ProductImageLike[] | null | undefined) {
