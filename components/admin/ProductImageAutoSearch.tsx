@@ -29,9 +29,11 @@ export default function ProductImageAutoSearch({ productId }: { productId: strin
   async function importImage(candidate: Candidate) {
     setImporting(candidate.imageUrl); setMessage('جاري تنزيل الصورة والتحقق منها وحفظها في التخزين…');
     try {
+      const body = candidate.pageUrl.startsWith('mobileapi:')
+        ? { pageUrl: candidate.pageUrl, matchedName: candidate.name }
+        : { imageUrl: candidate.imageUrl, pageUrl: candidate.pageUrl };
       const response = await fetch(`/api/admin/products/${productId}/image-import`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ imageUrl: candidate.imageUrl, pageUrl: candidate.pageUrl }),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'تعذر استيراد الصورة.');
