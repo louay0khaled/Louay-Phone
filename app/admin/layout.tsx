@@ -19,7 +19,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
   if (!userId) redirect('/admin/login');
   const { data: admin } = await supabase.from('admins').select('id,name,role,is_active').eq('id', userId).eq('is_active', true).maybeSingle();
   if (!admin) { await supabase.auth.signOut(); redirect('/admin/login?error=unauthorized'); }
-  return <div dir="rtl" className="min-h-screen bg-[#07090c] text-white">
+  return <div dir="rtl" className="admin-shell min-h-screen text-white">
     <aside className="fixed inset-y-0 right-0 z-40 hidden w-72 border-l border-white/[.08] bg-[#090c10]/95 p-5 backdrop-blur-xl lg:block">
       <div className="mb-7 flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-2xl border border-sky-300/20 bg-gradient-to-br from-sky-200 to-sky-500 font-black text-slate-950 shadow-lg shadow-sky-500/10">LP</div><div><b>Louay Phone</b><p className="text-xs text-slate-500">Control Center</p></div></div>
       <nav className="space-y-1.5">{links.map(([label, href, Icon], index) => <Link key={`${href}-${label}`} href={href} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition duration-200 ${index === 1 ? 'border border-sky-300/10 bg-sky-400/[.06] text-sky-200' : 'text-slate-300 hover:bg-white/[.04] hover:text-white'}`}><Icon size={18}/>{label}</Link>)}</nav>
