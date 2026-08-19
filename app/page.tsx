@@ -137,11 +137,9 @@ export default async function HomePage() {
   const products = await getProducts();
   const phoneProducts = products.filter(isPhoneProduct).sort((a, b) => rankProduct(b) - rankProduct(a));
   const visibleProducts = phoneProducts.length ? phoneProducts : products;
-  const hero = visibleProducts.find((p) => primaryImage(p)) ?? visibleProducts[0];
-  const lineup = visibleProducts.filter((p) => p.id !== hero?.id).slice(0, 3);
-  const featureA = visibleProducts.find((p) => p.id !== hero?.id && primaryImage(p)) ?? visibleProducts[1] ?? hero;
-  const featureB = visibleProducts.find((p) => p.id !== hero?.id && p.id !== featureA?.id && primaryImage(p)) ?? visibleProducts[2] ?? hero;
-  const uniqueBrands = Array.from(new Map(visibleProducts.filter((p) => p.brand).map((p) => [p.brand, p])).values()).slice(0, 3);
+  const featuredProducts = visibleProducts.filter((p) => p.is_featured && primaryImage(p));
+  const prioritized = featuredProducts.length ? featuredProducts : visibleProducts.filter((p) => primaryImage(p)).sort((a, b) => rankProduct(b) - rankProduct(a));
+  const hero = prioritized[0] ?? visibleProducts[0];
 
   if (!hero) {
     return (
@@ -155,6 +153,13 @@ export default async function HomePage() {
     );
   }
 
+  const lineupPool = (featuredProducts.length ? featuredProducts : prioritized).filter((p) => p.id !== hero.id);
+  const fillPool = visibleProducts.filter((p) => !lineupPool.some((x) => x.id === p.id) && p.id !== hero.id).sort((a, b) => rankProduct(b) - rankProduct(a));
+  const lineup = [...lineupPool, ...fillPool].slice(0, 3);
+  const featurePool = [...lineupPool, ...fillPool];
+  const featureA = featurePool.find((p) => primaryImage(p)) ?? hero;
+  const featureB = featurePool.find((p) => p.id !== featureA.id && primaryImage(p)) ?? hero;
+  const uniqueBrands = Array.from(new Map(visibleProducts.filter((p) => p.brand).map((p) => [p.brand, p])).values()).slice(0, 3);
   const heroSrc = primaryImage(hero);
 
   return (
@@ -195,7 +200,7 @@ export default async function HomePage() {
           <header className="section__head">
             <div className="eyebrow">THE LINEUP</div>
             <h2 className="section__title">اختَر هاتفك.</h2>
-            <p className="section__lead">مختارات حقيقية من متجرك، مرتبة أولًا حسب الصور والترويج والتوفر.</p>
+            <p className="section__lead">المنتجات التي يحددها الأدمن كمميزة تتقدم تلقائيًا إلى واجهة الصفحة، مع fallback ذكي عند عدم تحديدها.</p>
           </header>
           <div className="lineup">{lineup.length ? lineup.map((p) => <ProductCard key={p.id} product={p} />) : <ProductCard product={hero} />}</div>
         </div>
