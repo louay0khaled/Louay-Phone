@@ -20,8 +20,9 @@ export default function MobileHomeMenu() {
   }, [open]);
 
   return (
-    <div className={styles.menu}>
+    <div className={styles.root}>
       <button
+        className={styles.trigger}
         type="button"
         aria-expanded={open}
         aria-controls="home-mobile-menu"
