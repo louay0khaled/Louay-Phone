@@ -3,6 +3,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import './site.css';
 import './motion.css';
+import './storefront-ui.css';
 import ChatGate from '@/components/store/ChatGate';
 import InstallAppPrompt from '@/components/store/InstallAppPrompt';
 import ServiceWorkerRegister from '@/components/store/ServiceWorkerRegister';
