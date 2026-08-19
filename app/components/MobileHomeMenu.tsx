@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import styles from './MobileHomeMenu.module.css';
 
 const links = [
   ['الهواتف', '#lineup'],
@@ -19,9 +20,8 @@ export default function MobileHomeMenu() {
   }, [open]);
 
   return (
-    <div className="mobile-home-menu">
+    <div className={styles.menu}>
       <button
-        className="nav-menu"
         type="button"
         aria-expanded={open}
         aria-controls="home-mobile-menu"
@@ -32,16 +32,16 @@ export default function MobileHomeMenu() {
       </button>
 
       {open && (
-        <div id="home-mobile-menu" className="mobile-menu-panel" role="dialog" aria-modal="true">
-          <button className="mobile-menu-scrim" aria-label="إغلاق القائمة" onClick={() => setOpen(false)} />
-          <div className="mobile-menu-card">
+        <div id="home-mobile-menu" className={styles.panel} role="dialog" aria-modal="true">
+          <button className={styles.scrim} aria-label="إغلاق القائمة" onClick={() => setOpen(false)} />
+          <div className={styles.card}>
             {links.map(([label, href]) => (
               <Link key={href} href={href} onClick={() => setOpen(false)}>
                 <span>{label}</span>
                 <span aria-hidden="true">›</span>
               </Link>
             ))}
-            <Link className="mobile-menu-cta" href="#lineup" onClick={() => setOpen(false)}>
+            <Link className={styles.cta} href="#lineup" onClick={() => setOpen(false)}>
               تسوّق الآن
             </Link>
           </div>
