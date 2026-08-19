@@ -13,13 +13,10 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: 'ar',
     dir: 'rtl',
     categories: ['shopping', 'electronics'],
-    icons: [
-      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-    ],
+    icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
     shortcuts: [
-      { name: 'الهواتف', short_name: 'الهواتف', url: '/products', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
-      { name: 'الصفحة الرئيسية', short_name: 'الرئيسية', url: '/', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
+      { name: 'الهواتف', short_name: 'الهواتف', url: '/products', icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' }] },
+      { name: 'الصفحة الرئيسية', short_name: 'الرئيسية', url: '/', icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' }] },
     ],
   };
 }
