@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import ProductGallery from '@/app/components/ProductGallery';
 import { formatUsd, getActiveProducts, getProductBySlug, primaryImage } from '@/lib/products';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const src = primaryImage(product);
   const related = (await getActiveProducts(24))
     .filter((item) => item.id !== product.id && item.brand_id === product.brand_id && primaryImage(item))
     .slice(0, 3);
@@ -35,14 +35,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         <div className="container">
           <div className="product-detail__crumb"><Link href="/products">الهواتف</Link><span>›</span><span>{product.brand}</span><span>›</span><strong>{product.name}</strong></div>
           <div className="product-detail__grid">
-            <div className="product-gallery">
-              <div className="product-gallery__stage">
-                {src ? <img src={src} alt={product.images[0]?.alt_text ?? product.name} fetchPriority="high" /> : <div className="product-card__placeholder">الصورة قيد الإضافة</div>}
-              </div>
-              <div className="product-gallery__thumbs">
-                {product.images.map((image, index) => <a key={image.id ?? `${image.url}-${index}`} href={image.url} target="_blank" rel="noreferrer" className={index === 0 ? 'product-gallery__thumb product-gallery__thumb--active' : 'product-gallery__thumb'}><img src={image.url} alt={image.alt_text ?? `${product.name} ${index + 1}`} loading={index === 0 ? 'eager' : 'lazy'} /></a>)}
-              </div>
-            </div>
+            <ProductGallery name={product.name} images={product.images} />
 
             <div className="product-detail__copy">
               <div className="eyebrow">{product.brand}</div>
@@ -51,7 +44,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <div className="product-detail__price">{formatUsd(product.price_usd)}{product.price_syp != null ? <small>{new Intl.NumberFormat('en-US').format(Number(product.price_syp))} ل.س</small> : null}</div>
               <div className={`product-detail__stock ${product.stock_status === 'out_of_stock' ? 'product-detail__stock--out' : ''}`}>{product.stock_status === 'out_of_stock' ? 'غير متوفر حاليًا' : 'متوفر للطلب'}</div>
               {product.installment_enabled && <div className="product-detail__installment">يتوفر لهذا المنتج خيار التقسيط.</div>}
-              <div className="product-detail__actions"><Link href={`/product/${product.slug}#order`} className="btn btn--dark">اطلب الآن</Link><Link href="/products" className="btn btn--link">مقارنة مع الهواتف</Link></div>
+              <div className="product-detail__actions"><Link href={`/product/${product.slug}#order`} className="btn btn--dark">اطلب الآن</Link><Link href="/products" className="btn btn--link">العودة للهواتف</Link></div>
               {product.description && <div className="product-detail__description"><h2>عن المنتج</h2><p>{product.description}</p></div>}
             </div>
           </div>
