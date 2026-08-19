@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'louay-phone-v4';
+const CACHE_VERSION = 'louay-phone-v5';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -15,6 +15,7 @@ const isCacheableStatic = (url) => {
   const path = url.pathname;
   return (
     path.startsWith('/_next/static/') ||
+    path.startsWith('/_next/image') ||
     path.startsWith('/images/') ||
     path.startsWith('/fonts/') ||
     path.endsWith('.css') ||
@@ -38,8 +39,7 @@ const isExcluded = (url) => {
   return (
     path.startsWith('/api/') ||
     path.startsWith('/admin') ||
-    path.startsWith('/login') ||
-    path.startsWith('/_next/image')
+    path.startsWith('/login')
   );
 };
 
@@ -70,7 +70,7 @@ const cacheFirst = async (request) => {
   const cache = await caches.open(RUNTIME_CACHE);
   const cached = await cache.match(request);
   const network = fetch(request).then((response) => {
-    if (response.ok && response.type === 'basic') cache.put(request, response.clone());
+    if (response.ok && (response.type === 'basic' || response.type === 'opaque')) cache.put(request, response.clone());
     return response;
   }).catch(() => null);
   return cached || network || Response.error();
