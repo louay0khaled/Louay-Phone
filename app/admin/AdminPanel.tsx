@@ -2,139 +2,27 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabase-browser';
+import styles from './AdminPanel.module.css';
 
-type Product = {
-  id: string;
-  name: string;
-  model: string | null;
-  price_usd: number | null;
-  price_syp: number | null;
-  stock_status: string | null;
-  is_active: boolean;
-  is_featured: boolean;
-  brand_id: string | null;
-};
-
+type Product = { id: string; name: string; model: string | null; price_usd: number | null; price_syp: number | null; stock_status: string | null; is_active: boolean; is_featured: boolean; brand_id: string | null };
 type Mode = 'login' | 'dashboard';
 
 export default function AdminPanel() {
-  const [mode, setMode] = useState<Mode>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [query, setQuery] = useState('');
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>('login'); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [products, setProducts] = useState<Product[]>([]); const [query, setQuery] = useState(''); const [savingId, setSavingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    supabaseBrowser.auth.getUser().then(async ({ data }) => {
-      if (!mounted || !data.user) return;
-      const { data: admin } = await supabaseBrowser.from('admins').select('id').eq('id', data.user.id).maybeSingle();
-      if (mounted && admin) {
-        setMode('dashboard');
-        await loadProducts();
-      }
-    });
-    return () => { mounted = false; };
-  }, []);
+  useEffect(() => { let mounted = true; supabaseBrowser.auth.getUser().then(async ({ data }) => { if (!mounted || !data.user) return; const { data: admin } = await supabaseBrowser.from('admins').select('id').eq('id', data.user.id).maybeSingle(); if (mounted && admin) { setMode('dashboard'); await loadProducts(); } }); return () => { mounted = false; }; }, []);
 
-  async function loadProducts() {
-    const { data, error: loadError } = await supabaseBrowser
-      .from('products')
-      .select('id,name,model,price_usd,price_syp,stock_status,is_active,is_featured,brand_id')
-      .order('updated_at', { ascending: false })
-      .limit(200);
-    if (loadError) {
-      setError(loadError.message);
-      return;
-    }
-    setProducts((data ?? []) as Product[]);
-  }
+  async function loadProducts() { const { data, error: loadError } = await supabaseBrowser.from('products').select('id,name,model,price_usd,price_syp,stock_status,is_active,is_featured,brand_id').order('updated_at', { ascending: false }).limit(200); if (loadError) { setError(loadError.message); return; } setProducts((data ?? []) as Product[]); }
 
-  async function login(event: FormEvent) {
-    event.preventDefault();
-    setError('');
-    setBusy(true);
-    const { data, error: loginError } = await supabaseBrowser.auth.signInWithPassword({ email, password });
-    if (loginError || !data.user) {
-      setBusy(false);
-      setError(loginError?.message ?? 'تعذر تسجيل الدخول.');
-      return;
-    }
-    const { data: admin, error: adminError } = await supabaseBrowser.from('admins').select('id,email,is_active').eq('id', data.user.id).maybeSingle();
-    if (adminError || !admin || !admin.is_active) {
-      await supabaseBrowser.auth.signOut();
-      setBusy(false);
-      setError('هذا الحساب غير مخوّل لإدارة المتجر.');
-      return;
-    }
-    setMode('dashboard');
-    await loadProducts();
-    setBusy(false);
-  }
+  async function login(event: FormEvent) { event.preventDefault(); setError(''); setBusy(true); const { data, error: loginError } = await supabaseBrowser.auth.signInWithPassword({ email, password }); if (loginError || !data.user) { setBusy(false); setError(loginError?.message ?? 'تعذر تسجيل الدخول.'); return; } const { data: admin, error: adminError } = await supabaseBrowser.from('admins').select('id,email,is_active').eq('id', data.user.id).maybeSingle(); if (adminError || !admin || !admin.is_active) { await supabaseBrowser.auth.signOut(); setBusy(false); setError('هذا الحساب غير مخوّل لإدارة المتجر.'); return; } setMode('dashboard'); await loadProducts(); setBusy(false); }
 
-  async function updateProduct(id: string, patch: Partial<Product>) {
-    setSavingId(id);
-    setError('');
-    const { data, error: updateError } = await supabaseBrowser.from('products').update(patch).eq('id', id).select('id,name,model,price_usd,price_syp,stock_status,is_active,is_featured,brand_id').single();
-    if (updateError || !data) {
-      setError(updateError?.message ?? 'تعذر حفظ التعديل.');
-    } else {
-      setProducts((current) => current.map((item) => item.id === id ? data as Product : item));
-    }
-    setSavingId(null);
-  }
+  async function updateProduct(id: string, patch: Partial<Product>) { setSavingId(id); setError(''); const { data, error: updateError } = await supabaseBrowser.from('products').update(patch).eq('id', id).select('id,name,model,price_usd,price_syp,stock_status,is_active,is_featured,brand_id').single(); if (updateError || !data) setError(updateError?.message ?? 'تعذر حفظ التعديل.'); else setProducts((current) => current.map((item) => item.id === id ? data as Product : item)); setSavingId(null); }
 
-  async function logout() {
-    await supabaseBrowser.auth.signOut();
-    setMode('login');
-    setProducts([]);
-  }
+  async function logout() { await supabaseBrowser.auth.signOut(); setMode('login'); setProducts([]); }
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter((p) => `${p.name} ${p.model ?? ''}`.toLowerCase().includes(q));
-  }, [products, query]);
+  const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return q ? products.filter((p) => `${p.name} ${p.model ?? ''}`.toLowerCase().includes(q)) : products; }, [products, query]);
 
-  if (mode === 'login') {
-    return (
-      <main className="admin-page">
-        <div className="admin-card admin-card--login">
-          <div className="eyebrow">LOUAY PHONE · ADMIN</div>
-          <h1>لوحة التحكم</h1>
-          <p>سجّل الدخول بحساب الإدارة المفعّل في Supabase.</p>
-          <form onSubmit={login} className="admin-form">
-            <label>البريد الإلكتروني<input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" required /></label>
-            <label>كلمة المرور<input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" required /></label>
-            {error && <div className="admin-error" role="alert">{error}</div>}
-            <button className="btn btn--dark admin-submit" disabled={busy} type="submit">{busy ? 'جارٍ الدخول…' : 'دخول'}</button>
-          </form>
-        </div>
-      </main>
-    );
-  }
+  if (mode === 'login') return <main className={styles.page}><div className={`${styles.card} ${styles.loginCard}`}><div className="eyebrow">LOUAY PHONE · ADMIN</div><h1>لوحة التحكم</h1><p>سجّل الدخول بحساب الإدارة المفعّل في Supabase.</p><form onSubmit={login} className={styles.form}><label>البريد الإلكتروني<input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" required /></label><label>كلمة المرور<input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" required /></label>{error && <div className={styles.error} role="alert">{error}</div>}<button className={`btn btn--dark ${styles.submit}`} disabled={busy} type="submit">{busy ? 'جارٍ الدخول…' : 'دخول'}</button></form></div></main>;
 
-  return (
-    <main className="admin-page">
-      <div className="admin-shell container">
-        <header className="admin-header">
-          <div><div className="eyebrow">CONTROL CENTER</div><h1>إدارة المتجر</h1><p>تغييرات المنتجات هنا تنعكس مباشرة على الصفحة الرئيسية والكتالوج.</p></div>
-          <button className="btn btn--link" onClick={logout}>تسجيل الخروج</button>
-        </header>
-        <div className="admin-toolbar"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث عن منتج…" aria-label="بحث المنتجات" /><span>{filtered.length} منتج</span></div>
-        {error && <div className="admin-error" role="alert">{error}</div>}
-        <div className="admin-products">
-          {filtered.map((product) => <article className="admin-product-row" key={product.id}>
-            <div className="admin-product-main"><strong>{product.name}</strong><span>{product.model ?? 'بدون موديل'}</span></div>
-            <label>USD<input inputMode="decimal" value={product.price_usd ?? ''} onChange={(e) => setProducts((current) => current.map((item) => item.id === product.id ? { ...item, price_usd: e.target.value === '' ? null : Number(e.target.value) } : item))} onBlur={() => updateProduct(product.id, { price_usd: product.price_usd })} /></label>
-            <label>الظهور<button className={`admin-toggle ${product.is_active ? 'admin-toggle--on' : ''}`} disabled={savingId === product.id} onClick={() => updateProduct(product.id, { is_active: !product.is_active })} type="button">{product.is_active ? 'ظاهر' : 'مخفي'}</button></label>
-            <label>مميز<button className={`admin-toggle ${product.is_featured ? 'admin-toggle--featured' : ''}`} disabled={savingId === product.id} onClick={() => updateProduct(product.id, { is_featured: !product.is_featured })} type="button">{product.is_featured ? 'مميز' : 'عادي'}</button></label>
-          </article>)}
-        </div>
-      </div>
-    </main>
-  );
+  return <main className={styles.page}><div className={styles.shell}><header className={styles.header}><div><div className="eyebrow">CONTROL CENTER</div><h1>إدارة المتجر</h1><p>تغييرات المنتجات هنا تنعكس مباشرة على الصفحة الرئيسية والكتالوج.</p></div><button className="btn btn--link" onClick={logout}>تسجيل الخروج</button></header><div className={styles.toolbar}><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث عن منتج…" aria-label="بحث المنتجات" /><span>{filtered.length} منتج</span></div>{error && <div className={styles.error} role="alert">{error}</div>}<div className={styles.products}>{filtered.map((product) => <article className={styles.row} key={product.id}><div className={styles.main}><strong>{product.name}</strong><span>{product.model ?? 'بدون موديل'}</span></div><label>USD<input inputMode="decimal" value={product.price_usd ?? ''} onChange={(e) => setProducts((current) => current.map((item) => item.id === product.id ? { ...item, price_usd: e.target.value === '' ? null : Number(e.target.value) } : item))} onBlur={() => updateProduct(product.id, { price_usd: product.price_usd })} /></label><label>الظهور<button className={`${styles.toggle} ${product.is_active ? styles.toggleOn : ''}`} disabled={savingId === product.id} onClick={() => updateProduct(product.id, { is_active: !product.is_active })} type="button">{product.is_active ? 'ظاهر' : 'مخفي'}</button></label><label>مميز<button className={`${styles.toggle} ${product.is_featured ? styles.toggleFeatured : ''}`} disabled={savingId === product.id} onClick={() => updateProduct(product.id, { is_featured: !product.is_featured })} type="button">{product.is_featured ? 'مميز' : 'عادي'}</button></label></article>)}</div></div></main>;
 }
