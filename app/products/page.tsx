@@ -3,6 +3,7 @@ import { formatUsd, getActiveProducts, primaryImage } from '@/lib/products';
 
 export const dynamic = 'force-dynamic';
 
+type SearchParams = Promise<{ q?: string; brand?: string }>;
 const blockedTerms = ['pad', 'tab', 'tablet', 'cover', 'case', 'charger', 'watch', 'band', 'earbuds', 'buds'];
 
 function isPhone(product: Awaited<ReturnType<typeof getActiveProducts>>[number]) {
@@ -16,9 +17,7 @@ function ProductCard({ product }: { product: Awaited<ReturnType<typeof getActive
     <article className="product-card">
       <div>
         <div className="product-card__top"><span className="product-card__brand">{product.brand}</span><span className="product-card__badge">{product.stock_status === 'out_of_stock' ? 'غير متوفر' : 'متوفر'}</span></div>
-        <div className="product-card__image">
-          {src ? <img src={src} alt={product.images[0]?.alt_text ?? product.name} loading="lazy" /> : <div className="product-card__placeholder">الصورة قيد الإضافة</div>}
-        </div>
+        <div className="product-card__image">{src ? <img src={src} alt={product.images[0]?.alt_text ?? product.name} loading="lazy" /> : <div className="product-card__placeholder">الصورة قيد الإضافة</div>}</div>
       </div>
       <div className="product-card__copy">
         <h3>{product.name}</h3>
@@ -30,9 +29,16 @@ function ProductCard({ product }: { product: Awaited<ReturnType<typeof getActive
   );
 }
 
-export default async function ProductsPage() {
-  const products = (await getActiveProducts(120)).filter(isPhone);
-  const brands = [...new Set(products.map((p) => p.brand).filter(Boolean))];
+export default async function ProductsPage({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
+  const q = (params.q ?? '').trim().toLowerCase();
+  const selectedBrand = (params.brand ?? '').trim();
+  const allProducts = (await getActiveProducts(120)).filter(isPhone);
+  const brands = [...new Set(allProducts.map((p) => p.brand).filter(Boolean))] as string[];
+  const products = allProducts.filter((product) => {
+    const haystack = `${product.name} ${product.model ?? ''} ${product.brand ?? ''}`.toLowerCase();
+    return (!q || haystack.includes(q)) && (!selectedBrand || product.brand === selectedBrand);
+  });
 
   return (
     <main>
@@ -42,10 +48,15 @@ export default async function ProductsPage() {
         <div className="container">
           <header className="section__head"><div className="eyebrow">SMARTPHONE CATALOG</div><h1 className="section__title">كل الهواتف.</h1><p className="section__lead">ابحث ضمن المنتجات الحقيقية الموجودة في المتجر، مع الأسعار والتوفر والصور الحالية.</p></header>
           <div className="catalog-toolbar" aria-label="أدوات البحث والفلترة">
-            <form className="catalog-search" action="/products" method="get"><input name="q" placeholder="ابحث عن هاتف أو ماركة…" aria-label="ابحث عن هاتف أو ماركة"/><button className="btn btn--dark" type="submit">بحث</button></form>
-            <div className="catalog-brands"><span>الماركات:</span>{brands.slice(0, 10).map((brand) => <span key={brand} className="catalog-chip">{brand}</span>)}</div>
+            <form className="catalog-search" action="/products" method="get">
+              <input name="q" defaultValue={params.q ?? ''} placeholder="ابحث عن هاتف أو ماركة…" aria-label="ابحث عن هاتف أو ماركة" />
+              {selectedBrand && <input type="hidden" name="brand" value={selectedBrand} />}
+              <button className="btn btn--dark" type="submit">بحث</button>
+            </form>
+            <div className="catalog-brands"><span>الماركات:</span><Link className={`catalog-chip${!selectedBrand ? ' catalog-chip--active' : ''}`} href="/products">الكل</Link>{brands.slice(0, 10).map((brand) => <Link key={brand} className={`catalog-chip${brand === selectedBrand ? ' catalog-chip--active' : ''}`} href={`/products?brand=${encodeURIComponent(brand)}`}>{brand}</Link>)}</div>
           </div>
-          {products.length ? <div className="lineup">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="empty-state"><h2>ما لقينا منتجات مطابقة.</h2><p>جرّب كلمة بحث مختلفة.</p></div>}
+          <div className="catalog-result-count">{products.length} منتج</div>
+          {products.length ? <div className="lineup">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="empty-state"><h2>ما لقينا منتجات مطابقة.</h2><p>جرّب كلمة بحث مختلفة أو أزل فلتر الماركة.</p><Link className="btn btn--dark" href="/products">إظهار كل الهواتف</Link></div>}
         </div>
       </section>
     </main>
