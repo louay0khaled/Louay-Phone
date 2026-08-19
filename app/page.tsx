@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import MobileHomeMenu from '@/app/components/MobileHomeMenu';
 import { getSupabase } from '@/lib/supabase';
 
 type ImageRow = { id?: string; url: string; alt_text?: string | null; is_primary?: boolean | null; position?: number | null };
@@ -169,7 +170,7 @@ export default async function HomePage() {
             <Link href="#about">Louay Phone</Link>
           </nav>
           <Link href="#lineup" className="nav-cta">تسوّق الآن</Link>
-          <button className="nav-menu" aria-label="فتح القائمة">القائمة</button>
+          <MobileHomeMenu />
         </div>
       </header>
 
