@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { MessageCircle, Search } from 'lucide-react';
 import { getSiteAssets } from '@/lib/site-config';
 import MobileAppBar from './MobileAppBar';
 
@@ -18,12 +19,17 @@ export default async function StoreHeader({ compact = false }: { compact?: boole
           </Link>
           <nav className="store-nav__links" aria-label="التنقل الرئيسي">
             <Link href="/products">الهواتف</Link>
-            <Link href="/products#brands">العلامات</Link>
+            <Link href="/products#brands">الماركات</Link>
+            <Link href="/#featured">المختارات</Link>
             <button type="button" data-open-chat>المساعدة</button>
           </nav>
-          <Link href="/products" className="store-nav__cta">تسوّق الآن</Link>
+          <div className="store-nav__actions">
+            <Link href="/products" className="store-nav__icon" aria-label="البحث عن هاتف"><Search size={18} strokeWidth={2} /></Link>
+            <Link href="/products" className="store-nav__cta">تسوّق الآن</Link>
+          </div>
         </div>
       </header>
+      <div className="store-support-pill" aria-hidden="true"><MessageCircle size={14}/> دعم مباشر</div>
       <MobileAppBar />
     </>
   );
