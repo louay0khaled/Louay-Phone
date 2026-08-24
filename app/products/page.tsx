@@ -39,7 +39,6 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
   const page = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1);
   const pageSize = 24;
 
-  // Fetch only lightweight product rows for filtering. Images/spec payloads are hydrated only for the visible page.
   const allRows = await getActiveProductRows(300);
   const brands = [...new Set(allRows.map((p) => p.brand).filter(Boolean))] as string[];
   const filteredRows = allRows.filter((product) => {
@@ -52,11 +51,13 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
   const visibleRows = filteredRows.slice((safePage - 1) * pageSize, safePage * pageSize);
   const products = await hydrateProductRows(visibleRows);
 
-  const makeUrl = (nextPage: number) => {
+  const makeUrl = (nextPage: number, overrides: { brand?: string; type?: ProductType } = {}) => {
+    const brand = overrides.brand ?? selectedBrand;
+    const type = overrides.type ?? selectedType;
     const search = new URLSearchParams();
     if (params.q) search.set('q', params.q);
-    if (selectedBrand) search.set('brand', selectedBrand);
-    if (selectedType !== 'all') search.set('type', selectedType);
+    if (brand) search.set('brand', brand);
+    if (type !== 'all') search.set('type', type);
     if (nextPage > 1) search.set('page', String(nextPage));
     const value = search.toString();
     return value ? `/products?${value}` : '/products';
@@ -68,8 +69,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
     <section className="section section--gray"><div className="container"><header className="section__head"><div className="eyebrow">FULL CATALOG</div><h1 className="section__title">كل منتجات المتجر.</h1><p className="section__lead">لا نخفي أي منتج فعّال. يمكنك البحث والتصفية، وستظهر المنتجات التي لا تملك صورًا مع تنبيه واضح بدل اختفائها.</p></header>
       <div className="catalog-toolbar" aria-label="أدوات البحث والفلترة">
         <form className="catalog-search" action="/products" method="get"><input name="q" defaultValue={params.q ?? ''} placeholder="ابحث عن هاتف، موديل أو ماركة…" aria-label="ابحث عن هاتف أو موديل أو ماركة" />{selectedBrand && <input type="hidden" name="brand" value={selectedBrand} />}{selectedType !== 'all' && <input type="hidden" name="type" value={selectedType} />}<button className="btn btn--dark" type="submit">بحث</button></form>
-        <div className="catalog-brands"><span>النوع:</span><Link className={`catalog-chip${selectedType === 'all' ? ' catalog-chip--active' : ''}`} href={makeUrl(1)}>الكل</Link><Link className={`catalog-chip${selectedType === 'phone' ? ' catalog-chip--active' : ''}`} href={makeUrl(1) + (makeUrl(1).includes('?') ? '&' : '?') + 'type=phone'}>الهواتف الذكية</Link><Link className={`catalog-chip${selectedType === 'feature-phone' ? ' catalog-chip--active' : ''}`} href="/products?type=feature-phone">الهواتف التقليدية</Link><Link className={`catalog-chip${selectedType === 'tablet' ? ' catalog-chip--active' : ''}`} href="/products?type=tablet">الأجهزة اللوحية</Link><Link className={`catalog-chip${selectedType === 'accessory' ? ' catalog-chip--active' : ''}`} href="/products?type=accessory">الإكسسوارات</Link></div>
-        <div className="catalog-brands"><span>الماركات:</span><Link className={`catalog-chip${!selectedBrand ? ' catalog-chip--active' : ''}`} href={makeUrl(1)}>الكل</Link>{brands.slice(0, 14).map((brand) => <Link key={brand} className={`catalog-chip${brand === selectedBrand ? ' catalog-chip--active' : ''}`} href={`/products?brand=${encodeURIComponent(brand)}`}>{brand}</Link>)}</div>
+        <div className="catalog-brands"><span>النوع:</span><Link className={`catalog-chip${selectedType === 'all' ? ' catalog-chip--active' : ''}`} href={makeUrl(1, { type: 'all' })}>الكل</Link><Link className={`catalog-chip${selectedType === 'phone' ? ' catalog-chip--active' : ''}`} href={makeUrl(1, { type: 'phone' })}>الهواتف الذكية</Link><Link className={`catalog-chip${selectedType === 'feature-phone' ? ' catalog-chip--active' : ''}`} href={makeUrl(1, { type: 'feature-phone' })}>الهواتف التقليدية</Link><Link className={`catalog-chip${selectedType === 'tablet' ? ' catalog-chip--active' : ''}`} href={makeUrl(1, { type: 'tablet' })}>الأجهزة اللوحية</Link><Link className={`catalog-chip${selectedType === 'accessory' ? ' catalog-chip--active' : ''}`} href={makeUrl(1, { type: 'accessory' })}>الإكسسوارات</Link></div>
+        <div className="catalog-brands"><span>الماركات:</span><Link className={`catalog-chip${!selectedBrand ? ' catalog-chip--active' : ''}`} href={makeUrl(1, { brand: '' })}>الكل</Link>{brands.slice(0, 14).map((brand) => <Link key={brand} className={`catalog-chip${brand === selectedBrand ? ' catalog-chip--active' : ''}`} href={makeUrl(1, { brand, type: selectedType })}>{brand}</Link>)}</div>
       </div>
       <div className="catalog-result-count">{filteredRows.length} منتج · الصفحة {safePage} من {totalPages}</div>
       {products.length ? <div className="lineup">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="empty-state"><h2>ما لقينا منتجات مطابقة.</h2><p>جرّب كلمة بحث مختلفة أو أزل الفلاتر.</p><Link className="btn btn--dark" href="/products">إظهار كل المنتجات</Link></div>}
