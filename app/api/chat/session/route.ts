@@ -1,6 +1,8 @@
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+import { VISITOR_TOKEN_COOKIE } from '@/lib/visitor-token';
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://gmpogiiqydoxoclxcvwh.supabase.co';
@@ -12,17 +14,28 @@ function db() {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
+    const cookieStore = await cookies();
+    const cookieToken = cookieStore.get(VISITOR_TOKEN_COOKIE)?.value ?? '';
+    const requestedToken = String(body?.token ?? '').trim();
+    const token = requestedToken || cookieToken || crypto.randomUUID();
     const name = String(body?.name ?? '').trim().replace(/\s+/g, ' ').slice(0, 120) || 'زائر الموقع';
-    const token = crypto.randomBytes(32).toString('base64url');
-    const supabase = db();
+    if (!/^[a-zA-Z0-9_-]{20,100}$/.test(token)) {
+      return NextResponse.json({ error: 'جلسة المحادثة غير صالحة.' }, { status: 400 });
+    }
 
-    const { data: existing } = await supabase
+    const supabase = db();
+    const { data: existing, error: existingError } = await supabase
       .from('conversations')
       .select('id,ticket_code,status,visitor_name')
       .eq('visitor_token', token)
       .maybeSingle();
+    if (existingError) throw existingError;
 
-    if (existing) return NextResponse.json({ token, conversation: existing });
+    if (existing) {
+      const response = NextResponse.json({ token, conversation: existing });
+      response.cookies.set({ name: VISITOR_TOKEN_COOKIE, value: token, maxAge: 60 * 60 * 24 * 365, path: '/', sameSite: 'lax', httpOnly: false });
+      return response;
+    }
 
     const { data: customer, error: customerError } = await supabase
       .from('customers')
@@ -40,6 +53,7 @@ export async function POST(request: Request) {
         ticket_code: ticketCode,
         visitor_name: name,
         visitor_token: token,
+        channel_origin: 'web',
         last_message_at: new Date().toISOString(),
       })
       .select('id,ticket_code,status,visitor_name')
@@ -53,8 +67,11 @@ export async function POST(request: Request) {
       is_read: true,
     });
 
-    return NextResponse.json({ token, conversation });
-  } catch {
+    const response = NextResponse.json({ token, conversation });
+    response.cookies.set({ name: VISITOR_TOKEN_COOKIE, value: token, maxAge: 60 * 60 * 24 * 365, path: '/', sameSite: 'lax', httpOnly: false });
+    return response;
+  } catch (error) {
+    console.error('Chat session error:', error);
     return NextResponse.json({ error: 'تعذر بدء المحادثة حاليًا.' }, { status: 503 });
   }
 }
