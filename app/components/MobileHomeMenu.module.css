@@ -1,7 +1,0 @@
-.root{display:none}
-.trigger{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 12px;border-radius:999px;background:#f3f3f5;color:#111;font-size:14px;transition:transform .18s ease,background-color .18s ease}.trigger:hover{background:#eaeaed}.trigger:active{transform:scale(.97)}
-.panel{position:fixed;inset:0;z-index:100}.scrim{position:absolute;inset:0;width:100%;height:100%;background:rgba(0,0,0,.38)}.card{position:absolute;inset:calc(12px + env(safe-area-inset-top)) 12px auto;padding:10px;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:26px;box-shadow:0 24px 70px rgba(0,0,0,.18);animation:menuIn .22s cubic-bezier(.22,.61,.36,1) both;will-change:transform,opacity}.card a{display:flex;align-items:center;justify-content:space-between;min-height:54px;padding:0 16px;border-radius:18px;color:#1d1d1f;font-size:16px;font-weight:600;touch-action:manipulation}.card a:hover{background:#f5f5f7}.cta{margin-top:6px;justify-content:center!important;background:#111!important;color:#fff!important}
-@keyframes menuIn{from{opacity:0;transform:translateY(-10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
-@media (max-width:900px){.root{display:block;justify-self:end}.trigger{display:inline-flex}}
-@media (min-width:901px){.panel{display:none}}
-@media (prefers-reduced-motion:reduce){.trigger,.card{animation:none;transition:none}}
