@@ -4,9 +4,14 @@ import { FormEvent, useRef, useState } from 'react';
 import Link from 'next/link';
 import styles from './OrderForm.module.css';
 
-export default function OrderForm({ productId }: { productId: string }) {
+type InstallmentPlan = { id: string; months: number; first_payment_type: string; first_payment_value: number; total_price: number | null; monthly_amount: number | null };
+
+type OrderFormProps = { productId: string; installmentPlans?: InstallmentPlan[] };
+
+export default function OrderForm({ productId, installmentPlans = [] }: OrderFormProps) {
   const [state, setState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const [selectedPlan, setSelectedPlan] = useState('');
   const formRef = useRef<HTMLFormElement | null>(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -19,6 +24,7 @@ export default function OrderForm({ productId }: { productId: string }) {
     const formData = new FormData(form);
     const payload = {
       productId,
+      installmentPlanId: selectedPlan || null,
       name: String(formData.get('name') ?? ''),
       phone: String(formData.get('phone') ?? ''),
       address: String(formData.get('address') ?? ''),
@@ -36,6 +42,7 @@ export default function OrderForm({ productId }: { productId: string }) {
 
       form.reset();
       formRef.current = null;
+      setSelectedPlan('');
       setMessage(`تم استلام طلبك بنجاح. رقم الطلب: ${data.orderId}`);
       setState('done');
     } catch (error) {
@@ -64,6 +71,12 @@ export default function OrderForm({ productId }: { productId: string }) {
         <label className={styles.label}>الاسم<input name="name" autoComplete="name" required maxLength={120} /></label>
         <label className={styles.label}>رقم الهاتف<input name="phone" inputMode="tel" autoComplete="tel" required maxLength={40} /></label>
       </div>
+      {installmentPlans.length > 0 && <label className={styles.label}>طريقة الدفع
+        <select name="installmentPlanId" value={selectedPlan} onChange={(event) => setSelectedPlan(event.target.value)}>
+          <option value="">دفع كامل</option>
+          {installmentPlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.months} شهر · دفعة أولى {plan.first_payment_type === 'percentage' ? `${plan.first_payment_value}%` : plan.first_payment_value} · شهري {plan.monthly_amount ?? '—'}</option>)}
+        </select>
+      </label>}
       <label className={styles.label}>العنوان <span>(اختياري)</span><input name="address" autoComplete="street-address" maxLength={250} /></label>
       <label className={styles.label}>ملاحظات <span>(اختياري)</span><textarea name="notes" rows={4} maxLength={1000} /></label>
       {message && <div className={`${styles.message} ${state === 'error' ? styles.messageError : ''}`} role={state === 'error' ? 'alert' : undefined}>{message}</div>}
