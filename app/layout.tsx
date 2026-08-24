@@ -3,6 +3,7 @@ import './globals.css';
 import './fonts.css';
 import './polish.css';
 import PWARegister from '@/app/components/PWARegister';
+import AnalyticsTracker from '@/app/components/AnalyticsTracker';
 
 const siteUrl = 'https://louay-phone.vercel.app';
 
@@ -18,5 +19,5 @@ export const metadata: Metadata = {
 const accessibilityMotionCss = `@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto!important}*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ar" dir="rtl"><head><style dangerouslySetInnerHTML={{ __html: accessibilityMotionCss }} /></head><body>{children}<PWARegister /></body></html>;
+  return <html lang="ar" dir="rtl"><head><style dangerouslySetInnerHTML={{ __html: accessibilityMotionCss }} /></head><body>{children}<PWARegister /><AnalyticsTracker /></body></html>;
 }
