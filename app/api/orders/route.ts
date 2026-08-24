@@ -111,14 +111,14 @@ export async function POST(request: Request) {
     }
 
     const order = result[0];
-    after(() => sendOrderNotification(order.order_id).catch((error) => console.error('Order notification failed:', error)));
+    after(() => sendOrderNotification(order.created_order_id).catch((error) => console.error('Order notification failed:', error)));
 
     return response({
       ok: true,
-      orderId: order.order_id,
+      orderId: order.created_order_id,
       status: 'new',
-      conversationId: order.conversation_id,
-      ticketCode: order.ticket_code,
+      conversationId: order.created_conversation_id,
+      ticketCode: order.created_ticket_code,
       telegramNotified: false,
     }, 200);
   } catch (error) {
