@@ -1,0 +1,37 @@
+/* Shared production polish: consistency, touch behavior, focus states, and mobile resilience. */
+html { overflow-x: hidden; }
+body { min-width: 320px; overflow-x: hidden; }
+a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+a, button { touch-action: manipulation; }
+button:disabled, .btn:disabled { cursor: not-allowed; }
+.btn:focus-visible, .catalog-chip:focus-visible, .nav-cta:focus-visible, .tab:focus-visible { outline: 2px solid #0071e3; outline-offset: 3px; }
+.catalog-pagination { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 30px; }
+.catalog-pagination > span { min-width: 72px; text-align: center; color: #6e6e73; font-size: 12px; font-weight: 700; }
+.catalog-chip--disabled { opacity: .45; pointer-events: none; }
+.product-card__placeholder { min-height: 100%; width: 100%; display: grid; place-items: center; padding: 24px; text-align: center; background: linear-gradient(180deg,#f6f6f8,#ededf0); color: #777; }
+.product-card__image img, .hero__image { backface-visibility: hidden; }
+.product-card__actions .btn, .product-detail__actions .btn { min-width: 0; }
+.order-layout { display: grid; grid-template-columns: minmax(0, .8fr) minmax(360px, 1.2fr); gap: 40px; align-items: start; }
+.plan-list { display: grid; gap: 10px; margin-top: 16px; }
+.plan-card { display: grid; grid-template-columns: auto 1fr 1fr; gap: 12px; align-items: center; border: 1px solid rgba(0,0,0,.07); border-radius: 18px; background: #fafafa; padding: 14px 16px; color: #333; font-size: 12px; }
+.plan-card strong { font-size: 14px; color: #111; }
+.chat-shell { overscroll-behavior: contain; }
+@media (max-width: 900px) {
+  .order-layout { grid-template-columns: 1fr; }
+  .order-form { max-width: none; }
+}
+@media (max-width: 560px) {
+  .site-nav { background: rgba(255,255,255,.97); }
+  .product-detail__grid { gap: 28px; }
+  .product-gallery__stage { height: min(88vw, 480px); border-radius: 24px; }
+  .product-gallery__stage img { padding: 28px; }
+  .product-detail__copy h1 { font-size: 48px; }
+  .product-detail__price { font-size: 30px; }
+  .plan-card { grid-template-columns: 1fr 1fr; }
+  .plan-card strong { grid-column: 1 / -1; }
+  .catalog-pagination { margin-top: 22px; }
+  .catalog-pagination .catalog-chip { min-height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-card__image img, .hero__image { transition: none !important; }
+}
