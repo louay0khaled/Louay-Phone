@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './fonts.css';
+import './polish.css';
 
 const siteUrl = 'https://louay-phone.vercel.app';
 
