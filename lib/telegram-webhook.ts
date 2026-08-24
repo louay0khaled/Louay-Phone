@@ -116,14 +116,9 @@ function parseCallback(data: string) {
 }
 
 async function claimCallback(callbackId: string) {
-  const supabase = adminDb();
-  const { data, error } = await supabase
-    .from('telegram_processed_callbacks')
-    .insert({ callback_id: callbackId, status: 'processing' })
-    .select('callback_id')
-    .maybeSingle();
-  if (error && error.code !== '23505') throw error;
-  return Boolean(data);
+  const { data, error } = await adminDb().rpc('claim_telegram_callback', { p_callback_id: callbackId });
+  if (error) throw error;
+  return data === true;
 }
 
 async function setCallbackStatus(callbackId: string, status: 'succeeded' | 'failed') {
