@@ -3,6 +3,7 @@
 import { FormEvent, useRef, useState } from 'react';
 import Link from 'next/link';
 import styles from './OrderForm.module.css';
+import { getOrCreateVisitorToken } from '@/lib/visitor-token';
 
 type InstallmentPlan = { id: string; months: number; first_payment_type: string; first_payment_value: number; total_price: number | null; monthly_amount: number | null };
 
@@ -24,6 +25,7 @@ export default function OrderForm({ productId, installmentPlans = [] }: OrderFor
     const formData = new FormData(form);
     const payload = {
       productId,
+      chatToken: getOrCreateVisitorToken(),
       installmentPlanId: selectedPlan || null,
       name: String(formData.get('name') ?? ''),
       phone: String(formData.get('phone') ?? ''),

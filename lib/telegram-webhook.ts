@@ -42,7 +42,7 @@ function displayName(message: TelegramMessage) {
   return [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim() || from?.username || message.chat.title || 'مستخدم';
 }
 
-async function replyTicket(ticketId: string, replyText: string, sourceTelegramMessageId?: number) {
+async function replyTicket(ticketId: string, replyText: string, sourceTelegramMessageId?: number, sourceTelegramChatId?: number) {
   const supabase = adminDb();
   const { data: conversation, error } = await supabase
     .from('conversations')
@@ -57,6 +57,7 @@ async function replyTicket(ticketId: string, replyText: string, sourceTelegramMe
     sender_type: 'admin',
     message_text: replyText,
     telegram_message_id: sourceTelegramMessageId ?? null,
+    telegram_chat_id: sourceTelegramChatId ?? null,
     is_read: false,
   });
   if (messageError) throw messageError;
@@ -80,11 +81,11 @@ async function handleAdminMessage(message: TelegramMessage) {
   const text = message.text.trim();
   const direct = parseReplyCommand(text);
   const repliedText = String(message.reply_to_message?.text ?? '');
-  const repliedTicket = repliedText.match(/\b(WEB|TG)-[A-Z0-9]+\b/i)?.[0]?.toUpperCase();
+  const repliedTicket = repliedText.match(/\b(WEB|TG|ORDER)-[A-Z0-9]+\b/i)?.[0]?.toUpperCase();
   const parsed = direct ?? (repliedTicket ? { ticketId: repliedTicket, replyText: text } : null);
 
   if (parsed) {
-    const ok = await replyTicket(parsed.ticketId, parsed.replyText, message.message_id);
+    const ok = await replyTicket(parsed.ticketId, parsed.replyText, message.message_id, adminChatId);
     await sendTelegramMessage(
       adminChatId,
       ok
@@ -101,113 +102,123 @@ async function handleAdminMessage(message: TelegramMessage) {
   return false;
 }
 
-async function sendOrderNotification(orderId: string) {
-  const supabase = adminDb();
-  const adminChatId = getAdminChatId();
-  if (adminChatId === null) return;
+function parseCallback(data: string) {
+  const parts = data.split(':');
+  if (parts[0] === 'order' && parts.length >= 4 && ['reviewing', 'confirmed', 'cancelled'].includes(parts[1])) {
+    return { kind: 'order', action: parts[1], entityId: parts[2], nonce: parts[3] };
+  }
+  if (parts[0] === 'order' && parts.length === 3 && ['reviewing', 'confirmed', 'cancelled'].includes(parts[2])) {
+    return { kind: 'order', action: parts[2], entityId: parts[1], nonce: '' };
+  }
+  if (parts[0] === 'reply' && parts[1]) return { kind: 'reply', action: 'reply', entityId: parts[1], nonce: parts[2] ?? '' };
+  if (parts[0] === 'close' && parts[1]) return { kind: 'close', action: 'close', entityId: parts[1], nonce: parts[2] ?? '' };
+  return null;
+}
 
-  const { data: order } = await supabase
-    .from('orders')
-    .select('id,status,total_amount,notes,customer_id,product_id')
-    .eq('id', orderId)
-    .maybeSingle();
-  if (!order) return;
+async function claimCallback(callbackId: string) {
+  const { data, error } = await adminDb().rpc('claim_telegram_callback', { p_callback_id: callbackId });
+  if (error) throw error;
+  return data === true;
+}
 
-  const [{ data: customer }, { data: product }, { data: conversation }] = await Promise.all([
-    supabase.from('customers').select('name,phone,address,telegram_chat_id').eq('id', order.customer_id).maybeSingle(),
-    supabase.from('products').select('name,model').eq('id', order.product_id).maybeSingle(),
-    supabase.from('conversations').select('id,ticket_code').eq('customer_id', order.customer_id).order('last_message_at', { ascending: false }).limit(1).maybeSingle(),
-  ]);
+async function setCallbackStatus(callbackId: string, status: 'succeeded' | 'failed') {
+  await adminDb().from('telegram_processed_callbacks').update({ status }).eq('callback_id', callbackId);
+}
 
-  const ticket = conversation?.ticket_code || `WEB-${String(order.id).slice(0, 8).toUpperCase()}`;
-  const text = [
-    '<b>🛍️ طلب جديد</b>',
-    `<b>الطلب:</b> <code>${escapeHtml(String(order.id))}</code>`,
-    `<b>التذكرة:</b> <code>${escapeHtml(ticket)}</code>`,
-    `<b>الزبون:</b> ${escapeHtml(String(customer?.name || '—'))}`,
-    `<b>الهاتف:</b> ${escapeHtml(String(customer?.phone || '—'))}`,
-    `<b>العنوان:</b> ${escapeHtml(String(customer?.address || '—'))}`,
-    `<b>المنتج:</b> ${escapeHtml(String(product?.name || '—'))}${product?.model ? `\n<b>الموديل:</b> ${escapeHtml(String(product.model))}` : ''}`,
-    `<b>المبلغ:</b> ${escapeHtml(String(order.total_amount ?? '—'))}`,
-    `<b>الملاحظات:</b> ${escapeHtml(String(order.notes || '—'))}`,
-  ].join('\n');
-
-  await sendTelegramMessage(adminChatId, text, {
-    inline_keyboard: [
-      [
-        { text: '👀 مراجعة', callback_data: `order:${order.id}:reviewing` },
-        { text: '✅ تأكيد', callback_data: `order:${order.id}:confirmed` },
-        { text: '❌ إلغاء', callback_data: `order:${order.id}:cancelled` },
-      ],
-      [{ text: `✍️ رد ${ticket}`, callback_data: `reply:${ticket}` }],
-    ],
-  });
+async function audit(action: string, entity: string, entityId: string | null, metadata: Record<string, unknown>) {
+  const { error } = await adminDb().from('audit_logs').insert({ action, entity, entity_id: entityId, metadata });
+  if (error) console.error('Audit log failed:', error);
 }
 
 async function handleAdminCallback(query: NonNullable<TelegramUpdate['callback_query']>) {
+  try {
+    await answerTelegramCallback(query.id);
+  } catch (error) {
+    console.error('answerCallbackQuery failed:', error);
+  }
+
   const adminChatId = getAdminChatId();
   if (adminChatId === null || Number(query.message?.chat.id) !== adminChatId) return false;
-  await answerTelegramCallback(query.id);
+  if (!(await claimCallback(query.id))) return true;
 
-  const data = String(query.data || '');
-  const [kind, first, second] = data.split(':');
+  const parsed = parseCallback(String(query.data || ''));
   const supabase = adminDb();
 
-  if (kind === 'order' && ['reviewing', 'confirmed', 'cancelled'].includes(second)) {
-    const { data: order, error } = await supabase
-      .from('orders')
-      .update({ status: second })
-      .eq('id', first)
-      .select('id,customer_id')
-      .maybeSingle();
-    if (error || !order) {
-      await sendTelegramMessage(adminChatId, `⚠️ تعذر تحديث الطلب <code>${escapeHtml(first)}</code>.`);
+  try {
+    if (!parsed) {
+      await setCallbackStatus(query.id, 'succeeded');
       return true;
     }
 
-    const { data: conversation } = await supabase
-      .from('conversations')
-      .select('id,telegram_chat_id,ticket_code')
-      .eq('customer_id', order.customer_id)
-      .order('last_message_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    if (parsed.kind === 'order') {
+      const { data: order, error } = await supabase
+        .from('orders')
+        .select('id,status,customer_id,conversation_id')
+        .eq('id', parsed.entityId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!order) throw new Error('Order not found');
 
-    if (conversation && second !== 'reviewing') {
-      const customerMessage = second === 'confirmed'
-        ? '✅ تم تأكيد طلبك من فريق Louay Phone وسنتواصل معك لإتمام التفاصيل.'
-        : '❌ تم إلغاء الطلب حاليًا. إذا كان ذلك غير مقصود، أرسل لنا رسالة.';
-      await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'bot', message_text: customerMessage, is_read: true });
-      await supabase.from('conversations').update({ status: second === 'confirmed' ? 'processing' : 'closed', last_message_at: new Date().toISOString() }).eq('id', conversation.id);
-      if (conversation.telegram_chat_id && Number(conversation.telegram_chat_id) !== adminChatId) {
-        await sendTelegramMessage(conversation.telegram_chat_id, customerMessage);
+      const { data: updatedOrder, error: updateError } = await supabase
+        .from('orders')
+        .update({ status: parsed.action })
+        .eq('id', order.id)
+        .select('id,status,conversation_id')
+        .maybeSingle();
+      if (updateError) throw updateError;
+      if (!updatedOrder) throw new Error('Order update failed');
+
+      const conversation = updatedOrder.conversation_id
+        ? (await supabase.from('conversations').select('id,telegram_chat_id,ticket_code').eq('id', updatedOrder.conversation_id).maybeSingle()).data
+        : null;
+
+      if (conversation && parsed.action !== 'reviewing') {
+        const customerMessage = parsed.action === 'confirmed'
+          ? '✅ تم تأكيد طلبك من فريق Louay Phone وسنتواصل معك لإتمام التفاصيل.'
+          : '❌ تم إلغاء الطلب حاليًا. إذا كان ذلك غير مقصود، أرسل لنا رسالة.';
+        await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'bot', message_text: customerMessage, is_read: true, telegram_chat_id: conversation.telegram_chat_id ?? null });
+        await supabase.from('conversations').update({ status: parsed.action === 'confirmed' ? 'processing' : 'closed', last_message_at: new Date().toISOString() }).eq('id', conversation.id);
+        if (conversation.telegram_chat_id && Number(conversation.telegram_chat_id) !== adminChatId) {
+          await sendTelegramMessage(conversation.telegram_chat_id, customerMessage);
+        }
       }
+
+      if (query.message?.message_id) {
+        await editTelegramReplyMarkup(adminChatId, query.message.message_id, []);
+      }
+      await audit('telegram_order_status', 'order', updatedOrder.id, { status: parsed.action, callback_id: query.id });
+      await sendTelegramMessage(adminChatId, `✅ تم تحديث الطلب <code>${escapeHtml(updatedOrder.id)}</code> إلى <b>${escapeHtml(parsed.action)}</b>.`);
+      await setCallbackStatus(query.id, 'succeeded');
+      return true;
     }
 
-    if (query.message?.message_id) {
-      await editTelegramReplyMarkup(adminChatId, query.message.message_id, []);
+    if (parsed.kind === 'close') {
+      await supabase.from('conversations').update({ status: 'closed', last_message_at: new Date().toISOString() }).eq('id', parsed.entityId);
+      if (query.message?.message_id) await editTelegramReplyMarkup(adminChatId, query.message.message_id, []);
+      await audit('telegram_close_conversation', 'conversation', parsed.entityId, { callback_id: query.id });
+      await sendTelegramMessage(adminChatId, '✅ تم إغلاق المحادثة.');
+      await setCallbackStatus(query.id, 'succeeded');
+      return true;
     }
-    await sendTelegramMessage(adminChatId, `✅ تم تحديث الطلب <code>${escapeHtml(first)}</code> إلى <b>${escapeHtml(second)}</b>.`);
+
+    if (parsed.kind === 'reply') {
+      await sendTelegramMessage(
+        adminChatId,
+        `✍️ الرد على التذكرة <code>${escapeHtml(parsed.entityId)}</code>\nاكتب الرد بالضغط على Reply على هذه الرسالة، أو استخدم /reply ${escapeHtml(parsed.entityId)} نص الرد.`,
+        { force_reply: true, input_field_placeholder: 'اكتب رد الزبون هنا...' },
+      );
+      await setCallbackStatus(query.id, 'succeeded');
+      return true;
+    }
+
+    await setCallbackStatus(query.id, 'succeeded');
+    return true;
+  } catch (error) {
+    console.error('Telegram callback handler failed:', error);
+    await setCallbackStatus(query.id, 'failed');
+    await sendTelegramMessage(adminChatId, '⚠️ تعذر تنفيذ العملية. حاول الضغط مرة أخرى بعد لحظات.').catch(() => undefined);
     return true;
   }
-
-  if (kind === 'close') {
-    await supabase.from('conversations').update({ status: 'closed', last_message_at: new Date().toISOString() }).eq('id', first);
-    if (query.message?.message_id) await editTelegramReplyMarkup(adminChatId, query.message.message_id, []);
-    await sendTelegramMessage(adminChatId, '✅ تم إغلاق المحادثة.');
-    return true;
-  }
-
-  if (kind === 'reply') {
-    await sendTelegramMessage(
-      adminChatId,
-      `✍️ الرد على التذكرة <code>${escapeHtml(first)}</code>\nاكتب الرد بالضغط على Reply على هذه الرسالة، أو استخدم /reply ${escapeHtml(first)} نص الرد.`,
-      { force_reply: true, input_field_placeholder: 'اكتب رد الزبون هنا...' },
-    );
-    return true;
-  }
-
-  return true;
 }
 
 async function handleCustomerMessage(message: TelegramMessage) {
@@ -243,25 +254,30 @@ async function handleCustomerMessage(message: TelegramMessage) {
     .from('conversations')
     .select('id,ticket_code,status')
     .eq('telegram_chat_id', chatId)
-    .in('status', ['open', 'processing'])
-    .order('last_message_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   let conversation = existingConversation as R | null;
   if (!conversation) {
     const { data, error } = await supabase
       .from('conversations')
-      .insert({ customer_id: customerId, telegram_chat_id: chatId, status: 'open', visitor_name: name, last_message_at: new Date().toISOString() })
+      .insert({ customer_id: customerId, telegram_chat_id: chatId, status: 'open', visitor_name: name, channel_origin: 'telegram', last_message_at: new Date().toISOString() })
       .select('id,ticket_code,status')
       .single();
     if (error || !data) throw error ?? new Error('تعذر إنشاء المحادثة');
     conversation = data;
   } else {
-    await supabase.from('conversations').update({ visitor_name: name, last_message_at: new Date().toISOString(), status: 'open' }).eq('id', conversation.id);
+    await supabase.from('conversations').update({ visitor_name: name, last_message_at: new Date().toISOString(), status: 'open', channel_origin: 'telegram' }).eq('id', conversation.id);
   }
 
-  await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'user', message_text: text, telegram_message_id: message.message_id, is_read: false });
+  const { data: existingMessage } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('telegram_chat_id', chatId)
+    .eq('telegram_message_id', message.message_id)
+    .maybeSingle();
+  if (!existingMessage) {
+    await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'user', message_text: text, telegram_message_id: message.message_id, telegram_chat_id: chatId, is_read: false });
+  }
 
   if (adminChatId !== null) {
     await sendTelegramMessage(adminChatId, [
