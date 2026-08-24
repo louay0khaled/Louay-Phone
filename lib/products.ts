@@ -6,19 +6,32 @@ export type HomepageShowcase = { hero_product_id?: string | null; featured_produ
 export type StoreSettings = { name?: string; currency?: string; secondary_currency?: string };
 export type SiteAsset = { key: string; url: string; mime_type?: string | null; version?: number | null };
 
+const productColumns = 'id,brand_id,name,slug,model,description,price_usd,price_syp,stock_quantity,stock_status,installment_enabled,specs,is_active,is_featured,created_at,updated_at';
+
 export function primaryImage(product: Product) { return [...product.images].sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || Number(a.position ?? 0) - Number(b.position ?? 0))[0]?.url ?? null; }
 export function formatUsd(value?: number | null) { if (value == null) return 'السعر عند الطلب'; return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value))}`; }
 
 export async function getActiveProducts(limit = 100) {
   const supabase = getSupabase(); if (!supabase) return [] as Product[];
-  const { data, error } = await supabase.from('products').select('id,brand_id,name,slug,model,description,price_usd,price_syp,stock_quantity,stock_status,installment_enabled,specs,is_active,is_featured,created_at,updated_at').eq('is_active', true).order('is_featured', { ascending: false }).order('updated_at', { ascending: false }).limit(limit);
+  const { data, error } = await supabase.from('products').select(productColumns).eq('is_active', true).order('is_featured', { ascending: false }).order('updated_at', { ascending: false }).limit(limit);
   if (error || !data?.length) return [] as Product[];
   return hydrateProducts(data as Omit<Product, 'brand' | 'images'>[]);
 }
 
+export async function getProductsByIds(ids: string[]) {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  if (!uniqueIds.length) return [] as Product[];
+  const supabase = getSupabase(); if (!supabase) return [] as Product[];
+  const { data, error } = await supabase.from('products').select(productColumns).eq('is_active', true).in('id', uniqueIds);
+  if (error || !data?.length) return [] as Product[];
+  const hydrated = await hydrateProducts(data as Omit<Product, 'brand' | 'images'>[]);
+  const rank = new Map(uniqueIds.map((id, index) => [id, index]));
+  return hydrated.sort((a, b) => (rank.get(a.id) ?? 9999) - (rank.get(b.id) ?? 9999));
+}
+
 export async function getProductBySlug(slug: string) {
   const supabase = getSupabase(); if (!supabase) return null;
-  const { data, error } = await supabase.from('products').select('id,brand_id,name,slug,model,description,price_usd,price_syp,stock_quantity,stock_status,installment_enabled,specs,is_active,is_featured,created_at,updated_at').eq('slug', slug).eq('is_active', true).maybeSingle();
+  const { data, error } = await supabase.from('products').select(productColumns).eq('slug', slug).eq('is_active', true).maybeSingle();
   if (error || !data) return null;
   const hydrated = await hydrateProducts([data as Omit<Product, 'brand' | 'images'>]);
   return hydrated[0] ?? null;
