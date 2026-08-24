@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import styles from './ReviewForm.module.css';
+import { trackAnalytics } from '@/lib/analytics';
 
 type ReviewFormProps = { productId: string };
 
@@ -18,6 +18,7 @@ export default function ReviewForm({ productId }: ReviewFormProps) {
     event.preventDefault();
     setState('sending');
     setMessage('');
+    trackAnalytics('review_submit', window.location.pathname, { productId, rating });
     try {
       const response = await fetch('/api/reviews', {
         method: 'POST',
@@ -35,25 +36,27 @@ export default function ReviewForm({ productId }: ReviewFormProps) {
     }
   }
 
-  if (state === 'done') return <div className="empty-state"><h3>شكرًا لرأيك ⭐</h3><p>{message}</p></div>;
+  if (state === 'done') {
+    return <div className="empty-state"><h3>شكرًا لرأيك ⭐</h3><p>{message}</p></div>;
+  }
 
   return (
-    <form onSubmit={submit} className={styles.form}>
-      <div className={styles.rating} aria-label="اختر تقييمك">
+    <form onSubmit={submit} className="review-form">
+      <div className="review-form__rating" aria-label="اختر تقييمك">
         {Array.from({ length: 5 }, (_, index) => {
           const value = index + 1;
-          return <button key={value} type="button" onClick={() => setRating(value)} aria-label={`${value} نجوم`} className={value <= rating ? styles.active : ''}>★</button>;
+          return <button key={value} type="button" onClick={() => setRating(value)} aria-label={`${value} نجوم`} className={value <= rating ? 'is-active' : ''}>★</button>;
         })}
       </div>
-      <div className={styles.grid}>
-        <label className={styles.label}>الاسم<input value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} /></label>
-        <label className={styles.label}>رقم الهاتف<input value={phone} onChange={(event) => setPhone(event.target.value)} required inputMode="tel" maxLength={40} /></label>
-        <label className={styles.label}>رقم الطلب<input value={orderId} onChange={(event) => setOrderId(event.target.value)} required placeholder="معرّف الطلب" /></label>
+      <div className="review-form__grid">
+        <label>الاسم<input value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} /></label>
+        <label>رقم الهاتف<input value={phone} onChange={(event) => setPhone(event.target.value)} required inputMode="tel" maxLength={40} /></label>
+        <label>رقم الطلب<input value={orderId} onChange={(event) => setOrderId(event.target.value)} required placeholder="معرّف الطلب" /></label>
       </div>
-      <label className={styles.label}>تعليقك<textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={4} maxLength={1500} placeholder="شو رأيك بالهاتف والتجربة؟" /></label>
-      {message && <div role="alert" className={state === 'error' ? styles.error : styles.message}>{message}</div>}
+      <label>تعليقك<textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={4} maxLength={1500} placeholder="شو رأيك بالهاتف والتجربة؟" /></label>
+      {message && <div role="alert" className={state === 'error' ? 'review-form__error' : 'review-form__message'}>{message}</div>}
       <button className="btn btn--dark" disabled={state === 'sending'}>{state === 'sending' ? 'جارٍ الإرسال…' : 'إرسال التقييم'}</button>
-      <p className={styles.hint}>التقييم متاح فقط بعد تأكيد طلب الهاتف، ورقم الهاتف يجب أن يطابق الطلب.</p>
+      <p className="review-form__hint">التقييم متاح فقط بعد تأكيد طلب الهاتف، ورقم الهاتف يجب أن يطابق الطلب.</p>
     </form>
   );
 }
