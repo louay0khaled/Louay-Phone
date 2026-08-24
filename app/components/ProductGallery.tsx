@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { KeyboardEvent, TouchEvent, useEffect, useState } from 'react';
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent, type TouchEvent } from 'react';
 import type { ProductImage } from '@/lib/products';
 
 const SUPABASE_ORIGIN = 'https://gmpogiiqydoxoclxcvwh.supabase.co';
@@ -25,7 +25,7 @@ export default function ProductGallery({ name, images }: { name: string; images:
 
   useEffect(() => {
     if (!zoomOpen) return;
-    const onKey = (event: KeyboardEvent) => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') setZoomOpen(false);
       if (event.key === 'ArrowLeft') setActive((index) => Math.min(images.length - 1, index + 1));
       if (event.key === 'ArrowRight') setActive((index) => Math.max(0, index - 1));
@@ -44,7 +44,7 @@ export default function ProductGallery({ name, images }: { name: string; images:
   }
 
   const move = (direction: -1 | 1) => setActive((index) => Math.max(0, Math.min(images.length - 1, index + direction)));
-  const onStageKey = (event: KeyboardEvent<HTMLDivElement>) => {
+  const onStageKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'ArrowLeft') { event.preventDefault(); move(1); }
     if (event.key === 'ArrowRight') { event.preventDefault(); move(-1); }
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setZoomOpen(true); }
