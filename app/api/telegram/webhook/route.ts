@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'edge';
 
 const SUPABASE_URL = 'https://gmpogiiqydoxoclxcvwh.supabase.co';
-const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/telegram-bot`;
+const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/telegram-bot-v2`;
 
 export async function GET() {
   return NextResponse.json({ ok: true, service: 'telegram-webhook' });
