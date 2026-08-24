@@ -10,11 +10,11 @@ function isOptimizable(url: string) {
   try { return new URL(url).origin === SUPABASE_ORIGIN; } catch { return false; }
 }
 
-function ProductImageView({ src, alt, priority = false, large = false }: { src: string; alt: string; priority?: boolean; large?: boolean }) {
+function ProductImageView({ src, alt, priority = false, large = false, thumbnail = false }: { src: string; alt: string; priority?: boolean; large?: boolean; thumbnail?: boolean }) {
   if (isOptimizable(src)) {
-    return <Image src={src} alt={alt} width={large ? 1600 : 1000} height={large ? 1600 : 1000} sizes={large ? '(max-width: 900px) 100vw, 90vw' : '(max-width: 900px) 100vw, 58vw'} priority={priority} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: large ? 24 : 48 }} />;
+    return <Image src={src} alt={alt} width={large ? 1600 : thumbnail ? 320 : 1000} height={large ? 1600 : thumbnail ? 320 : 1000} sizes={large ? '(max-width: 900px) 100vw, 90vw' : thumbnail ? '72px' : '(max-width: 900px) 100vw, 58vw'} priority={priority} loading={priority ? 'eager' : 'lazy'} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: large ? 24 : thumbnail ? 4 : 48 }} />;
   }
-  return <img src={src} alt={alt} fetchPriority={priority ? 'high' : 'auto'} loading={priority ? 'eager' : 'lazy'} />;
+  return <img src={src} alt={alt} fetchPriority={priority ? 'high' : 'auto'} loading={priority ? 'eager' : 'lazy'} decoding="async" />;
 }
 
 export default function ProductGallery({ name, images }: { name: string; images: ProductImage[] }) {
@@ -67,7 +67,7 @@ export default function ProductGallery({ name, images }: { name: string; images:
       </div>
       {images.length > 1 && <div className="product-gallery__thumbs" role="list" aria-label="صور المنتج">
         {images.map((image, index) => <button type="button" key={image.id ?? `${image.url}-${index}`} className={index === active ? 'product-gallery__thumb product-gallery__thumb--active' : 'product-gallery__thumb'} onClick={() => setActive(index)} aria-label={`الصورة ${index + 1}`} aria-pressed={index === active}>
-          <ProductImageView src={image.url} alt="" />
+          <ProductImageView src={image.url} alt="" thumbnail />
         </button>)}
       </div>}
 
