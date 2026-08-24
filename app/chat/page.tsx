@@ -1,8 +1,9 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { getOrCreateVisitorToken, setVisitorToken } from '@/lib/visitor-token';
 
-const TOKEN_KEY = 'louay_phone_web_chat_token';
+const POLL_INTERVAL_MS = 8000;
 type Message = { id: string; sender_type: string; message_text: string; created_at: string; is_read?: boolean };
 type Conversation = { id: string; ticket_code: string; status: string; visitor_name: string };
 
@@ -24,14 +25,15 @@ export default function ChatPage() {
 
   const unread = useMemo(() => messages.filter((m) => m.sender_type !== 'user' && !m.is_read).length, [messages]);
 
-  async function createSession(currentName = name) {
+  async function createSession(currentName = name, requestedToken = getOrCreateVisitorToken()) {
     const response = await fetch('/api/chat/session', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: currentName.trim() || undefined }),
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: currentName.trim() || undefined, token: requestedToken }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'تعذر بدء المحادثة');
-    localStorage.setItem(TOKEN_KEY, data.token);
+    setVisitorToken(data.token);
     setToken(data.token);
     setConversation(data.conversation);
     setMessages([]);
@@ -41,11 +43,10 @@ export default function ChatPage() {
     if (!token || document.hidden) return;
     const response = await fetch(`/api/chat/messages?token=${encodeURIComponent(token)}`, { cache: 'no-store' });
     if (response.status === 404) {
-      localStorage.removeItem(TOKEN_KEY);
-      setToken('');
-      setConversation(null);
-      setMessages([]);
-      await createSession();
+      const freshToken = crypto.randomUUID();
+      setVisitorToken(freshToken);
+      setToken(freshToken);
+      await createSession('', freshToken);
       return;
     }
     const data = await response.json();
@@ -65,11 +66,11 @@ export default function ChatPage() {
 
   useEffect(() => {
     let mounted = true;
+    const initialToken = getOrCreateVisitorToken();
     (async () => {
       try {
-        const existing = localStorage.getItem(TOKEN_KEY);
-        if (existing) setToken(existing);
-        else await createSession();
+        setToken(initialToken);
+        await createSession('', initialToken);
       } catch (err) {
         if (mounted) setError(err instanceof Error ? err.message : 'تعذر بدء المحادثة');
       } finally {
@@ -81,9 +82,11 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!token) return;
-    const refresh = () => { if (!document.hidden) void load().catch((err) => setError(err instanceof Error ? err.message : 'تعذر تحديث المحادثة')); };
+    const refresh = () => {
+      if (!document.hidden) void load().catch((err) => setError(err instanceof Error ? err.message : 'تعذر تحديث المحادثة'));
+    };
     refresh();
-    const timer = window.setInterval(refresh, 5000);
+    const timer = window.setInterval(refresh, POLL_INTERVAL_MS);
     document.addEventListener('visibilitychange', refresh);
     return () => {
       window.clearInterval(timer);
@@ -100,10 +103,12 @@ export default function ChatPage() {
     const text = draft.trim();
     if (!text || sending || !token) return;
     setSending(true); setError('');
+    const clientMessageId = crypto.randomUUID();
     try {
       const response = await fetch('/api/chat/messages', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ token, message: text }),
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, message: text, clientMessageId }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'تعذر إرسال الرسالة');
@@ -118,13 +123,14 @@ export default function ChatPage() {
   }
 
   function startFreshChat() {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken('');
+    const freshToken = crypto.randomUUID();
+    setVisitorToken(freshToken);
+    setToken(freshToken);
     setConversation(null);
     setMessages([]);
     setError('');
     setLoading(true);
-    void createSession().then(() => setLoading(false)).catch((err) => {
+    void createSession('', freshToken).then(() => setLoading(false)).catch((err) => {
       setError(err instanceof Error ? err.message : 'تعذر بدء المحادثة');
       setLoading(false);
     });
@@ -148,7 +154,7 @@ export default function ChatPage() {
             {error && <div className="mb-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
             {!name && !conversation?.visitor_name ? <div className="mb-3 flex gap-2"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="اسمك (اختياري)" className="min-w-0 flex-1 rounded-2xl border border-black/10 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-sky-400" /><button type="button" onClick={() => void createSession(name)} className="rounded-2xl border border-black/10 px-4 text-xs font-bold">حفظ الاسم</button></div> : null}
             <div className="flex gap-2"><textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="اكتب رسالتك…" rows={1} className="min-h-12 flex-1 resize-none rounded-[1.25rem] border border-black/10 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sky-400" onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} /><button disabled={sending || !draft.trim()} className="min-h-12 rounded-[1.25rem] bg-sky-600 px-5 text-sm font-black text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40">{sending ? '…' : 'إرسال'}</button></div>
-            <p className="mt-2 text-[11px] text-slate-400">Enter للإرسال · Shift + Enter لسطر جديد</p>
+            <p className="mt-2 text-[11px] text-slate-400">Enter للإرسال · Shift + Enter لسطر جديد · يتم التحديث تلقائيًا كل {POLL_INTERVAL_MS / 1000} ثوانٍ</p>
           </form>
         </div>
       </div>
