@@ -5,18 +5,20 @@ import { useEffect, useState } from 'react';
 import styles from './MobileHomeMenu.module.css';
 
 const links = [
-  ['الهواتف', '#lineup'],
-  ['التجربة', '#experience'],
+  ['الهواتف المميزة', '#lineup'],
   ['الماركات', '#brands'],
-  ['Louay Phone', '#about'],
+  ['الكتالوج الكامل', '/products'],
+  ['الدعم والمحادثة', '/chat'],
 ] as const;
 
 export default function MobileHomeMenu() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
   }, [open]);
 
   return (
@@ -33,8 +35,8 @@ export default function MobileHomeMenu() {
       </button>
 
       {open && (
-        <div id="home-mobile-menu" className={styles.panel} role="dialog" aria-modal="true">
-          <button className={styles.scrim} aria-label="إغلاق القائمة" onClick={() => setOpen(false)} />
+        <div id="home-mobile-menu" className={styles.panel} role="dialog" aria-modal="true" aria-label="قائمة المتجر">
+          <button className={styles.scrim} type="button" aria-label="إغلاق القائمة" onClick={() => setOpen(false)} />
           <div className={styles.card}>
             {links.map(([label, href]) => (
               <Link key={href} href={href} onClick={() => setOpen(false)}>
@@ -42,7 +44,7 @@ export default function MobileHomeMenu() {
                 <span aria-hidden="true">›</span>
               </Link>
             ))}
-            <Link className={styles.cta} href="#lineup" onClick={() => setOpen(false)}>
+            <Link className={styles.cta} href="/products" onClick={() => setOpen(false)}>
               تسوّق الآن
             </Link>
           </div>
