@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { handleTelegramUpdate } from '@/lib/telegram-webhook';
+import { handleReviewCallback } from '@/lib/review-webhook';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,6 +14,9 @@ export async function POST(req: Request) {
 
   try {
     const update = await req.json();
+    if (update?.callback_query && await handleReviewCallback(update.callback_query)) {
+      return NextResponse.json({ ok: true });
+    }
     await handleTelegramUpdate(update);
     return NextResponse.json({ ok: true });
   } catch (error) {
