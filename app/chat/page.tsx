@@ -33,10 +33,11 @@ export default function ChatPage() {
     localStorage.setItem(TOKEN_KEY, data.token);
     setToken(data.token);
     setConversation(data.conversation);
+    setMessages([]);
   }
 
   async function load() {
-    if (!token) return;
+    if (!token || document.hidden) return;
     const response = await fetch(`/api/chat/messages?token=${encodeURIComponent(token)}`, { cache: 'no-store' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'تعذر تحميل المحادثة');
@@ -63,9 +64,14 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!token) return;
-    void load();
-    const timer = window.setInterval(() => { void load().catch(() => undefined); }, 2500);
-    return () => window.clearInterval(timer);
+    const refresh = () => { if (!document.hidden) void load().catch(() => undefined); };
+    refresh();
+    const timer = window.setInterval(refresh, 5000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, [token]);
 
   useEffect(() => {
@@ -96,8 +102,15 @@ export default function ChatPage() {
 
   function startFreshChat() {
     localStorage.removeItem(TOKEN_KEY);
-    setToken(''); setConversation(null); setMessages('' as never); setMessages([]); setLoading(true);
-    void createSession().then(() => setLoading(false)).catch((err) => { setError(err instanceof Error ? err.message : 'تعذر بدء المحادثة'); setLoading(false); });
+    setToken('');
+    setConversation(null);
+    setMessages([]);
+    setError('');
+    setLoading(true);
+    void createSession().then(() => setLoading(false)).catch((err) => {
+      setError(err instanceof Error ? err.message : 'تعذر بدء المحادثة');
+      setLoading(false);
+    });
   }
 
   return (
