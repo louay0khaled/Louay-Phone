@@ -8,7 +8,8 @@ alter table public.orders
   add column if not exists conversation_id uuid references public.conversations(id) on delete set null;
 
 alter table public.messages
-  add column if not exists client_message_id text;
+  add column if not exists client_message_id text,
+  add column if not exists telegram_chat_id bigint;
 
 update public.conversations
 set ticket_code = 'WEB-' || upper(substr(replace(id::text, '-', ''), 1, 8))
@@ -20,18 +21,6 @@ alter table public.conversations
   add constraint conversations_channel_origin_check
   check (channel_origin in ('web','telegram','order'));
 
--- Preserve the newest copy of legacy duplicated Telegram message ids so the idempotency index can be created safely.
-with ranked as (
-  select id,
-         row_number() over (partition by telegram_message_id order by created_at desc, id desc) as rn
-  from public.messages
-  where telegram_message_id is not null
-)
-update public.messages m
-set telegram_message_id = null
-from ranked r
-where m.id = r.id and r.rn > 1;
-
 create unique index if not exists uniq_conversations_ticket_code
   on public.conversations(ticket_code)
   where ticket_code is not null;
@@ -41,12 +30,13 @@ create unique index if not exists uniq_conversations_visitor_token
 create unique index if not exists uniq_conversations_telegram_chat
   on public.conversations(telegram_chat_id)
   where telegram_chat_id is not null;
-create unique index if not exists uniq_messages_telegram_message_id
-  on public.messages(telegram_message_id)
-  where telegram_message_id is not null;
 create unique index if not exists uniq_messages_client_message_id
   on public.messages(client_message_id)
   where client_message_id is not null;
+
+create unique index if not exists uniq_messages_telegram_chat_message_id
+  on public.messages(telegram_chat_id, telegram_message_id)
+  where telegram_chat_id is not null and telegram_message_id is not null;
 
 create table if not exists public.telegram_processed_callbacks (
   callback_id text primary key,
