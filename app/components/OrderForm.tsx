@@ -4,6 +4,7 @@ import { FormEvent, useRef, useState } from 'react';
 import Link from 'next/link';
 import styles from './OrderForm.module.css';
 import { getOrCreateVisitorToken } from '@/lib/visitor-token';
+import { trackAnalytics } from '@/lib/analytics';
 
 type InstallmentPlan = { id: string; months: number; first_payment_type: string; first_payment_value: number; total_price: number | null; monthly_amount: number | null };
 
@@ -21,6 +22,7 @@ export default function OrderForm({ productId, installmentPlans = [] }: OrderFor
     formRef.current = form;
     setState('saving');
     setMessage('');
+    trackAnalytics('order_start', window.location.pathname, { productId, installmentPlanId: selectedPlan || null });
 
     const formData = new FormData(form);
     const payload = {
