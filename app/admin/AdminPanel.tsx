@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import styles from './AdminPanel.module.css';
 
-type Tab = 'products' | 'orders' | 'installments' | 'customers' | 'conversations' | 'reviews' | 'homepage' | 'settings' | 'assets' | 'audit';
+type Tab = 'products' | 'orders' | 'installments' | 'customers' | 'conversations' | 'reviews' | 'homepage' | 'settings' | 'assets' | 'audit' | 'completeness';
 
 type Product = {
   id: string;
@@ -24,6 +24,7 @@ type Setting = { key: string; value: Record<string, any> };
 
 const tabs: [Tab, string][] = [
   ['products', 'المنتجات'],
+  ['completeness', 'اكتمال البيانات'],
   ['orders', 'الطلبات'],
   ['installments', 'التقسيط'],
   ['customers', 'العملاء'],
@@ -44,7 +45,9 @@ export default function AdminPanel() {
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<Tab>('products');
   const [query, setQuery] = useState('');
+  const [showcaseQuery, setShowcaseQuery] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
+  const [productImageIds, setProductImageIds] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<Setting[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
@@ -58,6 +61,7 @@ export default function AdminPanel() {
   const store = getSetting('store');
   const exchange = getSetting('exchange_rate');
   const showcase = getSetting('homepage_showcase');
+  const featuredIds = Array.isArray(showcase.featured_product_ids) ? showcase.featured_product_ids as string[] : [];
 
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   const filteredProducts = useMemo(() => {
@@ -65,6 +69,22 @@ export default function AdminPanel() {
     if (!q) return products;
     return products.filter((product) => `${product.name} ${product.model ?? ''}`.toLowerCase().includes(q));
   }, [products, query]);
+
+  const showcaseCandidates = useMemo(() => {
+    const q = showcaseQuery.trim().toLowerCase();
+    const active = products.filter((product) => product.is_active);
+    const matches = q ? active.filter((product) => `${product.name} ${product.model ?? ''}`.toLowerCase().includes(q)) : active.slice(0, 24);
+    const selected = active.filter((product) => featuredIds.includes(product.id) || product.id === showcase.hero_product_id);
+    return Array.from(new Map([...selected, ...matches].map((product) => [product.id, product])).values());
+  }, [products, showcaseQuery, featuredIds, showcase.hero_product_id]);
+
+  const completeness = useMemo(() => {
+    const active = products.filter((product) => product.is_active);
+    const withoutImages = active.filter((product) => !productImageIds.has(product.id));
+    const withoutPrice = active.filter((product) => product.price_usd == null && product.price_syp == null);
+    const withoutModel = active.filter((product) => !product.model);
+    return { active, withoutImages, withoutPrice, withoutModel };
+  }, [products, productImageIds]);
 
   useEffect(() => {
     let active = true;
@@ -81,8 +101,9 @@ export default function AdminPanel() {
 
   async function loadAll() {
     setError('');
-    const [productsResult, ordersResult, plansResult, customersResult, conversationsResult, reviewsResult, settingsResult, assetsResult, auditResult] = await Promise.all([
+    const [productsResult, imageIdsResult, ordersResult, plansResult, customersResult, conversationsResult, reviewsResult, settingsResult, assetsResult, auditResult] = await Promise.all([
       supabaseBrowser.from('products').select('id,name,model,price_usd,price_syp,stock_quantity,stock_status,is_active,is_featured,slug').order('updated_at', { ascending: false }).limit(300),
+      supabaseBrowser.from('product_images').select('product_id').limit(1000),
       supabaseBrowser.from('orders').select('*').order('created_at', { ascending: false }).limit(200),
       supabaseBrowser.from('installment_plans').select('*').order('updated_at', { ascending: false }).limit(200),
       supabaseBrowser.from('customers').select('*').order('created_at', { ascending: false }).limit(200),
@@ -94,6 +115,7 @@ export default function AdminPanel() {
     ]);
 
     setProducts((productsResult.data ?? []) as Product[]);
+    setProductImageIds(new Set((imageIdsResult.data ?? []).map((row: { product_id: string }) => row.product_id)));
     setOrders(ordersResult.data ?? []);
     setPlans(plansResult.data ?? []);
     setCustomers(customersResult.data ?? []);
@@ -103,7 +125,7 @@ export default function AdminPanel() {
     setAssets(assetsResult.data ?? []);
     setAudit(auditResult.data ?? []);
 
-    const firstError = [productsResult, ordersResult, plansResult, customersResult, conversationsResult, reviewsResult, settingsResult, assetsResult, auditResult].find((result) => result.error);
+    const firstError = [productsResult, imageIdsResult, ordersResult, plansResult, customersResult, conversationsResult, reviewsResult, settingsResult, assetsResult, auditResult].find((result) => result.error);
     if (firstError?.error) setError(firstError.error.message);
   }
 
@@ -199,7 +221,7 @@ export default function AdminPanel() {
             <div className={styles.toolbar}><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث عن هاتف أو موديل…" /><span>{filteredProducts.length} منتج</span></div>
             <div className={styles.products}>{filteredProducts.map((product) => (
               <article className={styles.row} key={product.id}>
-                <div className={styles.main}><strong>{product.name}</strong><span>{product.model || 'بدون موديل'}</span></div>
+                <div className={styles.main}><strong>{product.name}</strong><span>{product.model || 'بدون موديل'}</span><div className={styles.badges}>{!productImageIds.has(product.id) && <span className={styles.badgeWarning}>بدون صورة</span>}{product.price_usd == null && product.price_syp == null && <span className={styles.badgeWarning}>بدون سعر</span>}{!product.model && <span className={styles.badgeMuted}>بدون موديل</span>}</div></div>
                 <label>USD<input value={product.price_usd ?? ''} onChange={(event) => setProducts((current) => current.map((item) => item.id === product.id ? { ...item, price_usd: event.target.value === '' ? null : Number(event.target.value) } : item))} onBlur={() => saveProduct(product.id, { price_usd: product.price_usd })} /></label>
                 <label>المخزون<input value={product.stock_quantity} onChange={(event) => setProducts((current) => current.map((item) => item.id === product.id ? { ...item, stock_quantity: Number(event.target.value || 0) } : item))} onBlur={() => saveProduct(product.id, { stock_quantity: product.stock_quantity })} /></label>
                 <label>الظهور<button className={`${styles.toggle} ${product.is_active ? styles.toggleOn : ''}`} disabled={saving} onClick={() => saveProduct(product.id, { is_active: !product.is_active })}>{product.is_active ? 'ظاهر' : 'مخفي'}</button></label>
@@ -209,6 +231,19 @@ export default function AdminPanel() {
             ))}</div>
           </section>
         )}
+
+        {tab === 'completeness' && <section>
+          <div className={styles.completenessGrid}>
+            <article className={styles.metric}><span>منتجات فعالة</span><strong>{completeness.active.length}</strong></article>
+            <article className={styles.metric}><span>بدون صورة</span><strong>{completeness.withoutImages.length}</strong></article>
+            <article className={styles.metric}><span>بدون سعر</span><strong>{completeness.withoutPrice.length}</strong></article>
+            <article className={styles.metric}><span>بدون موديل</span><strong>{completeness.withoutModel.length}</strong></article>
+          </div>
+          <div className={styles.card}>
+            <div className="eyebrow">MISSING DATA</div><h2>ابدأ من هنا.</h2><p>هذه قائمة أولويات عملية لمعالجة النواقص من داخل المتجر.</p>
+            <div className={styles.list}>{[...completeness.withoutImages, ...completeness.withoutPrice.filter((item) => !completeness.withoutImages.some((x) => x.id === item.id)), ...completeness.withoutModel.filter((item) => !completeness.withoutImages.some((x) => x.id === item.id) && !completeness.withoutPrice.some((x) => x.id === item.id))].slice(0, 60).map((product) => <article className={styles.panelRow} key={product.id}><div><strong>{product.name}</strong><span>{product.model || 'بدون موديل'}</span></div><div className={styles.badges}>{!productImageIds.has(product.id) && <span className={styles.badgeWarning}>بدون صورة</span>}{product.price_usd == null && product.price_syp == null && <span className={styles.badgeWarning}>بدون سعر</span>}{!product.model && <span className={styles.badgeMuted}>بدون موديل</span>}</div><Link className="btn btn--link" href={`/admin/media/${product.id}`}>إدارة الصور</Link></article>)}</div>
+          </div>
+        </section>}
 
         {tab === 'orders' && <section className={styles.list}>{orders.map((order) => <article className={styles.panelRow} key={order.id}><div><strong>طلب {String(order.id).slice(0, 8)}</strong><span>{order.product_id ? productMap.get(order.product_id)?.name || 'منتج' : '—'}</span></div><span>{order.total_amount ?? '—'}</span><select value={order.status} onChange={(event) => saveOrder(order.id, event.target.value)} disabled={saving}><option value="new">جديد</option><option value="reviewing">قيد المراجعة</option><option value="contacted">تم التواصل</option><option value="confirmed">مؤكد</option><option value="cancelled">ملغى</option></select></article>)}</section>}
 
@@ -220,7 +255,7 @@ export default function AdminPanel() {
 
         {tab === 'reviews' && <section className={styles.list}>{reviews.map((review) => <article className={styles.panelRow} key={review.id}><div><strong>{review.customer_name}</strong><span>{productMap.get(review.product_id)?.name || 'منتج'}</span></div><span>{'★'.repeat(Number(review.rating) || 0)}{'☆'.repeat(5 - (Number(review.rating) || 0))}</span><button className={`${styles.toggle} ${review.is_approved ? styles.toggleOn : ''}`} onClick={() => toggleReview(review.id, !review.is_approved)}>{review.is_approved ? 'معروض' : 'قيد المراجعة'}</button></article>)}</section>}
 
-        {tab === 'homepage' && <section className={styles.grid}><div className={styles.card}><div className="eyebrow">HERO</div><h2>اختيار صورة البطل</h2><select value={showcase.hero_product_id || ''} onChange={(event) => saveSetting('homepage_showcase', { ...showcase, hero_product_id: event.target.value || null })}><option value="">اختيار تلقائي</option>{products.filter((product) => product.is_active).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select><p>اختر المنتج الذي يقود الصفحة الرئيسية.</p></div><div className={styles.card}><div className="eyebrow">FEATURED</div><h2>الهواتف المميزة</h2><div className={styles.checkGrid}>{products.filter((product) => product.is_active).slice(0, 80).map((product) => { const ids: string[] = showcase.featured_product_ids || []; const checked = ids.includes(product.id); return <label key={product.id} className={styles.check}><input type="checkbox" checked={checked} onChange={(event) => { const next = event.target.checked ? [...ids, product.id] : ids.filter((id) => id !== product.id); if (next.length <= 6) void saveSetting('homepage_showcase', { ...showcase, featured_product_ids: next }); }} /><span>{product.name}</span></label>; })}</div></div></section>}
+        {tab === 'homepage' && <section className={styles.grid}><div className={styles.card}><div className="eyebrow">HERO</div><h2>اختيار صورة البطل</h2><input className={styles.showcaseSearch} value={showcaseQuery} onChange={(event) => setShowcaseQuery(event.target.value)} placeholder="ابحث عن هاتف لاختياره…" /><select value={showcase.hero_product_id || ''} onChange={(event) => saveSetting('homepage_showcase', { ...showcase, hero_product_id: event.target.value || null })}><option value="">اختيار تلقائي</option>{showcaseCandidates.map((product) => <option key={product.id} value={product.id}>{product.name} {product.model ? `· ${product.model}` : ''}</option>)}</select><p>اكتب اسم الهاتف للوصول إلى أي منتج فعال، حتى لو لم يكن من أول نتائج الكتالوج.</p></div><div className={styles.card}><div className="eyebrow">FEATURED</div><h2>الهواتف المميزة</h2><input className={styles.showcaseSearch} value={showcaseQuery} onChange={(event) => setShowcaseQuery(event.target.value)} placeholder="ابحث باسم الهاتف أو الموديل…" /><div className={styles.searchHint}>{showcaseQuery ? `نتائج البحث: ${showcaseCandidates.length}` : `عرض سريع: ${showcaseCandidates.length} · اكتب للبحث في كامل الكتالوج`}</div><div className={styles.checkGrid}>{showcaseCandidates.map((product) => { const checked = featuredIds.includes(product.id); return <label key={product.id} className={styles.check}><input type="checkbox" checked={checked} onChange={(event) => { const next = event.target.checked ? [...featuredIds, product.id] : featuredIds.filter((id) => id !== product.id); if (next.length <= 6) void saveSetting('homepage_showcase', { ...showcase, featured_product_ids: next }); }} /><span>{product.name}{product.model ? ` · ${product.model}` : ''}</span></label>; })}</div></div></section>}
 
         {tab === 'settings' && <section className={styles.settingsGrid}><div className={styles.card}><div className="eyebrow">STORE</div><h2>معلومات المتجر</h2><label>اسم المتجر<input defaultValue={store.name || 'Louay Phone'} onBlur={(event) => saveSetting('store', { ...store, name: event.target.value })} /></label><label>العملة الأساسية<input defaultValue={store.currency || 'SYP'} onBlur={(event) => saveSetting('store', { ...store, currency: event.target.value.toUpperCase() })} /></label><label>العملة الثانوية<input defaultValue={store.secondary_currency || 'USD'} onBlur={(event) => saveSetting('store', { ...store, secondary_currency: event.target.value.toUpperCase() })} /></label></div><div className={styles.card}><div className="eyebrow">EXCHANGE RATE</div><h2>سعر الصرف</h2><p>تعديل إداري فقط، ولا يغيّر أسعار المنتجات المخزنة تلقائيًا.</p><label>قيمة USD<input id="admin-exchange-rate" defaultValue={exchange.usd_to_syp ?? ''} inputMode="decimal" /></label><span>{store.currency || 'SYP'} لكل 1 USD</span><button className="btn btn--dark" onClick={() => saveSetting('exchange_rate', { usd_to_syp: Number((document.getElementById('admin-exchange-rate') as HTMLInputElement)?.value || 0) })} disabled={saving}>حفظ سعر الصرف</button></div></section>}
 
