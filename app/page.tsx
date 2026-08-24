@@ -43,7 +43,9 @@ function ProductCard({ product }: { product: Product }) {
 }
 
 export default async function HomePage() {
-  const [products, showcase, assets] = await Promise.all([getActiveProducts(200), getHomepageShowcase(), getSiteAssets()]);
+  // The home page only needs a curated pool; the full catalog remains on /products.
+  // Keeping this pool smaller avoids hydrating hundreds of image records during the first visit.
+  const [products, showcase, assets] = await Promise.all([getActiveProducts(80), getHomepageShowcase(), getSiteAssets()]);
   const smartphones = products.filter(isSmartphone);
   const smartphoneMap = new Map(smartphones.map((product) => [product.id, product]));
   const configuredHero = showcase.hero_product_id ? smartphoneMap.get(showcase.hero_product_id) : undefined;
@@ -71,7 +73,7 @@ export default async function HomePage() {
 
     <section id="brands" className="section section--gray"><div className="container"><header className="section__head"><div className="eyebrow">BRANDS</div><h2 className="section__title">الماركات.</h2><p className="section__lead">الماركات مأخوذة مباشرة من المنتجات الفعالة في المتجر.</p></header><div className="brand-strip">{uniqueBrands.map((product) => <Link key={product.brand} href={`/products?brand=${encodeURIComponent(product.brand ?? '')}`} className="brand-tile">{assetsByKey.get(`brand:${product.brand_id}`) ? <img src={assetsByKey.get(`brand:${product.brand_id}`)!} alt={product.brand!} loading="lazy" /> : <span>{product.brand}</span>}<small>استكشف</small></Link>)}</div></div></section>
 
-    <section id="about" className="final-cta"><div className="container"><div className="eyebrow">LOUAY PHONE</div><h2>كل منتجاتك.<br />بتجربة أوضح.</h2><p>تصفح الكتالوج الكامل، ابحث حسب الاسم أو الماركة، واطلب المنتج مباشرة من صفحة تفاصيله.</p><div className="actions"><Link href="/products" className="btn btn--dark">فتح الكتالوج</Link></div></div></section>
+    <section id="about" className="final-cta"><div className="container"><div className="eyebrow">LOUAY PHONE</div><h2>كل منتجاتك.<br />بتجربة أوضح.</h2><p>تصفح الكتالوج الكامل، ابحث حسب الاسم أو الماركة، واطلب المنتج مباشرة من صفحة تفاصيله.</p><div className="actions"><Link href="/products" className="btn btn--dark">فتح الكتالوج</Link><Link href="/chat" className="btn btn--link">تواصل مع الدعم</Link></div></div></section>
     <footer className="footer-lite"><div className="container footer-lite__row"><span>© {new Date().getFullYear()} Louay Phone</span><span>متجر الهواتف الذكية</span></div></footer>
   </main>;
 }
