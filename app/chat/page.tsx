@@ -40,6 +40,14 @@ export default function ChatPage() {
   async function load() {
     if (!token || document.hidden) return;
     const response = await fetch(`/api/chat/messages?token=${encodeURIComponent(token)}`, { cache: 'no-store' });
+    if (response.status === 404) {
+      localStorage.removeItem(TOKEN_KEY);
+      setToken('');
+      setConversation(null);
+      setMessages([]);
+      await createSession();
+      return;
+    }
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'تعذر تحميل المحادثة');
     setConversation(data.conversation);
@@ -73,7 +81,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!token) return;
-    const refresh = () => { if (!document.hidden) void load().catch(() => undefined); };
+    const refresh = () => { if (!document.hidden) void load().catch((err) => setError(err instanceof Error ? err.message : 'تعذر تحديث المحادثة')); };
     refresh();
     const timer = window.setInterval(refresh, 5000);
     document.addEventListener('visibilitychange', refresh);
