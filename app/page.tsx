@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import MobileHomeMenu from '@/app/components/MobileHomeMenu';
-import { getActiveProducts, getHomepageShowcase, getSiteAssets, primaryImage, type Product } from '@/lib/products';
+import { getActiveProducts, getHomepageShowcase, getProductsByIds, getSiteAssets, primaryImage, type Product } from '@/lib/products';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,10 +43,17 @@ function ProductCard({ product }: { product: Product }) {
 }
 
 export default async function HomePage() {
-  // The home page only needs a curated pool; the full catalog remains on /products.
-  // Keeping this pool smaller avoids hydrating hundreds of image records during the first visit.
-  const [products, showcase, assets] = await Promise.all([getActiveProducts(80), getHomepageShowcase(), getSiteAssets()]);
-  const smartphones = products.filter(isSmartphone);
+  const showcase = await getHomepageShowcase();
+  const selectedIds = [showcase.hero_product_id ?? '', ...(showcase.featured_product_ids ?? [])].filter(Boolean);
+  const [products, selectedProducts, assets] = await Promise.all([
+    getActiveProducts(80),
+    getProductsByIds(selectedIds),
+    getSiteAssets(),
+  ]);
+
+  const mergedProducts = new Map(products.map((product) => [product.id, product]));
+  for (const product of selectedProducts) mergedProducts.set(product.id, product);
+  const smartphones = [...mergedProducts.values()].filter(isSmartphone);
   const smartphoneMap = new Map(smartphones.map((product) => [product.id, product]));
   const configuredHero = showcase.hero_product_id ? smartphoneMap.get(showcase.hero_product_id) : undefined;
   const configuredFeatured = (showcase.featured_product_ids ?? []).map((id) => smartphoneMap.get(id)).filter((product): product is Product => Boolean(product));
