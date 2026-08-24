@@ -60,7 +60,7 @@ export default function ProductGallery({ name, images }: { name: string; images:
 
   return (
     <div className="product-gallery">
-      <div className="product-gallery__stage product-gallery__stage--interactive" role="button" tabIndex={0} aria-label="فتح صورة المنتج بحجم كبير" onClick={() => setZoomOpen(true)} onKeyDown={onStageKey} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div className="product-gallery__stage product-gallery__stage--interactive" role="group" tabIndex={0} aria-label="معرض صور المنتج. Enter للتكبير والأسهم للتنقل" onClick={() => setZoomOpen(true)} onKeyDown={onStageKey} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <ProductImageView src={current.url} alt={current.alt_text ?? name} priority />
         {images.length > 1 && <div className="product-gallery__count">{active + 1} / {images.length}</div>}
         {images.length > 1 && <><button type="button" className="product-gallery__nav product-gallery__nav--prev" aria-label="الصورة السابقة" onClick={(event) => { event.stopPropagation(); move(-1); }} disabled={active === 0}>‹</button><button type="button" className="product-gallery__nav product-gallery__nav--next" aria-label="الصورة التالية" onClick={(event) => { event.stopPropagation(); move(1); }} disabled={active === images.length - 1}>›</button></>}
