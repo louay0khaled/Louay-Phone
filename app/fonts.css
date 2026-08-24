@@ -1,4 +1,0 @@
-@font-face{font-family:'Louay Arabic';src:url('https://gmpogiiqydoxoclxcvwh.supabase.co/storage/v1/object/public/site-assets/fonts/regular/1786558996998-4f0aa0d8-47b0-437e-9303-bfe77d87030d.otf?v=1786558996998') format('opentype');font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:'Louay Arabic';src:url('https://gmpogiiqydoxoclxcvwh.supabase.co/storage/v1/object/public/site-assets/fonts/bold/1786558989619-1999e5d1-c956-4777-90c0-c380eefa760f.otf?v=1786558989619') format('opentype');font-weight:700 900;font-style:normal;font-display:swap}
-:root{--louay-font:'Louay Arabic',Inter,Arial,Tahoma,sans-serif}
-body{font-family:var(--louay-font)}
