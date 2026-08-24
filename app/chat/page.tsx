@@ -16,6 +16,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [name, setName] = useState('');
   const [draft, setDraft] = useState('');
+  const [productHint, setProductHint] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -45,6 +46,14 @@ export default function ChatPage() {
     setMessages(data.messages ?? []);
     setError('');
   }
+
+  useEffect(() => {
+    const product = new URLSearchParams(window.location.search).get('product')?.trim() || '';
+    if (product) {
+      setProductHint(product);
+      setDraft((current) => current || `مرحبًا، أريد الاستفسار عن ${product}`);
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -118,12 +127,12 @@ export default function ChatPage() {
       <div className="container py-8 sm:py-12">
         <div className="mx-auto max-w-4xl overflow-hidden rounded-[2rem] border border-black/10 bg-white shadow-[0_25px_100px_rgba(15,23,42,.12)]">
           <header className="flex items-center justify-between gap-4 border-b border-black/8 px-5 py-4 sm:px-7">
-            <div><p className="text-xs font-extrabold tracking-[.12em] text-sky-600">LOUAY PHONE SUPPORT</p><h1 className="mt-1 text-2xl font-black tracking-tight">المحادثة مع الدعم</h1><p className="mt-1 text-xs text-slate-500">تذكرتك: {conversation?.ticket_code ?? 'جاري التجهيز…'}</p></div>
+            <div><p className="text-xs font-extrabold tracking-[.12em] text-sky-600">LOUAY PHONE SUPPORT</p><h1 className="mt-1 text-2xl font-black tracking-tight">المحادثة مع الدعم</h1><div className="mt-1 flex flex-wrap gap-2 text-xs"><span className="text-slate-500">تذكرتك: {conversation?.ticket_code ?? 'جاري التجهيز…'}</span>{productHint && <span className="rounded-full bg-sky-50 px-2.5 py-1 font-bold text-sky-700">حول: {productHint}</span>}</div></div>
             <div className="flex items-center gap-2"><span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">● متصل</span><button type="button" onClick={startFreshChat} className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-bold text-slate-600">محادثة جديدة</button></div>
           </header>
 
           <div className="min-h-[60vh] bg-[linear-gradient(180deg,#fbfdff,#f4f7fb)] px-4 py-5 sm:px-7">
-            {loading ? <div className="grid min-h-[45vh] place-items-center text-sm text-slate-400">جاري تجهيز المحادثة…</div> : messages.length ? <div className="mx-auto max-w-2xl space-y-3">{messages.map((message) => { const mine = message.sender_type === 'user'; return <div key={message.id} className={`flex ${mine ? 'justify-start' : 'justify-end'}`}><article className={`max-w-[88%] rounded-[1.4rem] px-4 py-3 shadow-sm ${mine ? 'rounded-br-md bg-sky-600 text-white' : 'rounded-bl-md border border-black/6 bg-white text-slate-800'}`}><p className="whitespace-pre-wrap text-sm leading-7">{message.message_text}</p><time className={`mt-1 block text-[10px] ${mine ? 'text-sky-100' : 'text-slate-400'}`}>{timeLabel(message.created_at)}</time></article></div>; })}<div ref={endRef} /></div> : <div className="grid min-h-[45vh] place-items-center"><div className="max-w-md text-center"><div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-sky-100 text-2xl text-sky-600">✦</div><h2 className="mt-5 text-xl font-black">كيف فينا نساعدك؟</h2><p className="mt-2 text-sm leading-7 text-slate-500">اسأل عن هاتف، سعر، توفر، تقسيط، أو أي استفسار. المحادثة مرتبطة مباشرةً بطلبك.</p></div></div>}
+            {loading ? <div className="grid min-h-[45vh] place-items-center text-sm text-slate-400">جاري تجهيز المحادثة…</div> : messages.length ? <div className="mx-auto max-w-2xl space-y-3">{messages.map((message) => { const mine = message.sender_type === 'user'; return <div key={message.id} className={`flex ${mine ? 'justify-start' : 'justify-end'}`}><article className={`max-w-[88%] rounded-[1.4rem] px-4 py-3 shadow-sm ${mine ? 'rounded-br-md bg-sky-600 text-white' : 'rounded-bl-md border border-black/6 bg-white text-slate-800'}`}><p className="whitespace-pre-wrap text-sm leading-7">{message.message_text}</p><time className={`mt-1 block text-[10px] ${mine ? 'text-sky-100' : 'text-slate-400'}`}>{timeLabel(message.created_at)}</time></article></div>; })}<div ref={endRef} /></div> : <div className="grid min-h-[45vh] place-items-center"><div className="max-w-md text-center"><div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-sky-100 text-2xl text-sky-600">✦</div><h2 className="mt-5 text-xl font-black">كيف فينا نساعدك؟</h2><p className="mt-2 text-sm leading-7 text-slate-500">اسأل عن هاتف، سعر، توفر، تقسيط، أو أي استفسار. المحادثة مرتبطة مباشرةً بطلبك.</p>{productHint && <div className="mx-auto mt-4 inline-flex max-w-full rounded-full border border-sky-100 bg-white px-4 py-2 text-xs font-bold text-sky-700">جاهزين نجاوبك عن {productHint}</div>}</div></div>}
           </div>
 
           {unread > 0 && <div className="border-t border-amber-100 bg-amber-50 px-5 py-2 text-center text-xs font-bold text-amber-700">لديك {unread} رسالة جديدة من الفريق.</div>}
