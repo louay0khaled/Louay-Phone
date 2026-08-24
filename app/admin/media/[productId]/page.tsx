@@ -27,25 +27,46 @@ export default function AdminProductMedia({ params }: { params: Promise<{ produc
 
   async function upload(file: File) {
     if (!productId || !file.type.startsWith('image/')) return;
-    setBusy(true); setError('');
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const path = `${productId}/${crypto.randomUUID()}.${ext}`;
+    const safeExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'jpg';
+    const path = `${productId}/${crypto.randomUUID()}.${safeExt}`;
     const { error: storageError } = await supabaseBrowser.storage.from('product-images').upload(path, file, { contentType: file.type, upsert: false, cacheControl: '31536000' });
-    if (storageError) { setError(storageError.message); setBusy(false); return; }
+    if (storageError) throw new Error(storageError.message);
     const { data: publicData } = supabaseBrowser.storage.from('product-images').getPublicUrl(path);
-    await saveImageUrl(publicData.publicUrl, productName);
-    setBusy(false);
+    await saveImageUrl(publicData.publicUrl, productName, false);
   }
 
-  async function saveImageUrl(imageUrl: string, altText = productName) {
+  async function uploadBatch(files: File[]) {
+    if (!files.length || busy) return;
+    setBusy(true); setError('');
+    try {
+      // Serialize uploads so position/primary assignment remains deterministic.
+      for (const file of files) await upload(file);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'تعذر رفع إحدى الصور.');
+      await load(productId);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveImageUrl(imageUrl: string, altText = productName, manageBusy = true) {
     const clean = imageUrl.trim();
     if (!/^https:\/\//i.test(clean)) { setError('رابط الصورة يجب أن يبدأ بـ https://'); return; }
-    setBusy(true); setError('');
-    const nextPosition = images.length ? Math.max(...images.map((x) => x.position)) + 1 : 0;
-    const { data: row, error: insertError } = await supabaseBrowser.from('product_images').insert({ product_id: productId, url: clean, position: nextPosition, is_primary: images.length === 0, alt_text: altText || productName }).select('id,url,alt_text,is_primary,position').single();
-    if (insertError || !row) setError(insertError?.message ?? 'تعذر حفظ رابط الصورة.');
-    else { setImages((current) => [...current, row as ImageRow]); setUrl(''); }
-    setBusy(false);
+    if (clean.length > 2000) { setError('رابط الصورة طويل جدًا.'); return; }
+    if (manageBusy) setBusy(true);
+    setError('');
+    try {
+      const nextPosition = images.length ? Math.max(...images.map((x) => x.position)) + 1 : 0;
+      const { data: row, error: insertError } = await supabaseBrowser.from('product_images').insert({ product_id: productId, url: clean, position: nextPosition, is_primary: images.length === 0, alt_text: altText || productName }).select('id,url,alt_text,is_primary,position').single();
+      if (insertError || !row) throw new Error(insertError?.message ?? 'تعذر حفظ رابط الصورة.');
+      setImages((current) => [...current, row as ImageRow]);
+      setUrl('');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'تعذر حفظ رابط الصورة.');
+    } finally {
+      if (manageBusy) setBusy(false);
+    }
   }
 
   async function setPrimary(image: ImageRow) {
@@ -60,7 +81,7 @@ export default function AdminProductMedia({ params }: { params: Promise<{ produc
 
   async function moveImage(index: number, direction: -1 | 1) {
     const target = index + direction;
-    if (target < 0 || target >= sorted.length) return;
+    if (target < 0 || target >= sorted.length || busy) return;
     const current = [...sorted];
     const a = current[index]; const b = current[target];
     setBusy(true); setError('');
@@ -77,6 +98,7 @@ export default function AdminProductMedia({ params }: { params: Promise<{ produc
   }
 
   async function removeImage(image: ImageRow) {
+    if (busy) return;
     setBusy(true); setError('');
     const marker = image.url.match(/product-images\/([^?]+)/)?.[1];
     if (marker) await supabaseBrowser.storage.from('product-images').remove([marker]);
@@ -88,9 +110,9 @@ export default function AdminProductMedia({ params }: { params: Promise<{ produc
   const sorted = useMemo(() => [...images].sort((a, b) => a.position - b.position), [images]);
 
   return <main className="section section--gray"><div className="container"><div className="product-detail__crumb"><Link href="/admin">الإدارة</Link><span>›</span><strong>صور {productName}</strong></div><header className="section__head"><div className="eyebrow">PRODUCT MEDIA</div><h1 className="section__title">صور المنتج.</h1><p className="section__lead">ارفع صورة من جهازك أو ألصق رابط صورة مباشر، ثم رتّب المعرض وحدد الصورة الرئيسية.</p></header>
-    <div className="admin-media-toolbar"><label className="btn btn--dark">{busy ? 'جارٍ الحفظ…' : 'رفع صور من الجهاز'}<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden disabled={busy} onChange={(e) => { for (const file of Array.from(e.target.files ?? [])) void upload(file); e.currentTarget.value = ''; }} /></label><Link href="/admin" className="btn btn--link">العودة للإدارة</Link></div>
-    <div className="admin-url-box"><div><strong>إضافة رابط صورة</strong><span>رابط HTTPS مباشر فقط، ويُحفظ كرابط بدون استهلاك Storage.</span></div><div className="admin-url-row"><input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/phone.webp" inputMode="url" /><button className="btn btn--dark" disabled={busy || !url.trim()} type="button" onClick={() => void saveImageUrl(url)}>إضافة الرابط</button></div></div>
+    <div className="admin-media-toolbar"><label className="btn btn--dark">{busy ? 'جارٍ الحفظ…' : 'رفع صور من الجهاز'}<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden disabled={busy} onChange={(e) => { const files = Array.from(e.target.files ?? []); e.currentTarget.value = ''; void uploadBatch(files); }} /></label><Link href="/admin" className="btn btn--link">العودة للإدارة</Link></div>
+    <div className="admin-url-box"><div><strong>إضافة رابط صورة</strong><span>رابط HTTPS مباشر فقط، ويُحفظ كرابط بدون استهلاك Storage.</span></div><div className="admin-url-row"><input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/phone.webp" inputMode="url" autoComplete="off" /><button className="btn btn--dark" disabled={busy || !url.trim()} type="button" onClick={() => void saveImageUrl(url)}>إضافة الرابط</button></div></div>
     {error && <div className="admin-error" role="alert">{error}</div>}
-    <div className="admin-media-grid">{sorted.map((image, index) => <article className="admin-media-card" key={image.id}><img src={image.url} alt={image.alt_text ?? productName} loading="lazy" /><div className="admin-media-actions"><button onClick={() => void moveImage(index, -1)} disabled={busy || index === 0} type="button" aria-label="تحريك لأعلى">↑</button><button onClick={() => void moveImage(index, 1)} disabled={busy || index === sorted.length - 1} type="button" aria-label="تحريك لأسفل">↓</button>{image.is_primary ? <span className="admin-media-primary">رئيسية</span> : <button onClick={() => void setPrimary(image)} disabled={busy} type="button">تعيين رئيسية</button>}<button onClick={() => void removeImage(image)} disabled={busy} type="button">حذف</button></div><small className="admin-media-source">{image.url.includes('gmpogiiqydoxoclxcvwh.supabase.co/storage') ? 'مخزنة في المتجر' : 'رابط خارجي'}</small></article>)}</div>
+    <div className="admin-media-grid">{sorted.map((image, index) => <article className="admin-media-card" key={image.id}><img src={image.url} alt={image.alt_text ?? productName} loading="lazy" onError={(event) => { event.currentTarget.style.opacity = '0.35'; }} /><div className="admin-media-actions"><button onClick={() => void moveImage(index, -1)} disabled={busy || index === 0} type="button" aria-label="تحريك لأعلى">↑</button><button onClick={() => void moveImage(index, 1)} disabled={busy || index === sorted.length - 1} type="button" aria-label="تحريك لأسفل">↓</button>{image.is_primary ? <span className="admin-media-primary">رئيسية</span> : <button onClick={() => void setPrimary(image)} disabled={busy} type="button">تعيين رئيسية</button>}<button onClick={() => void removeImage(image)} disabled={busy} type="button">حذف</button></div><small className="admin-media-source">{image.url.includes('gmpogiiqydoxoclxcvwh.supabase.co/storage') ? 'مخزنة في المتجر' : 'رابط خارجي'}</small></article>)}</div>
     {!sorted.length && <div className="empty-state"><h2>لا توجد صور.</h2><p>ابدأ برفع صورة من جهازك أو ألصق رابط صورة.</p></div>}</div></main>;
 }
