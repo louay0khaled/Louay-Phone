@@ -42,7 +42,7 @@ function displayName(message: TelegramMessage) {
   return [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim() || from?.username || message.chat.title || 'مستخدم';
 }
 
-async function replyTicket(ticketId: string, replyText: string, sourceTelegramMessageId?: number) {
+async function replyTicket(ticketId: string, replyText: string, sourceTelegramMessageId?: number, sourceTelegramChatId?: number) {
   const supabase = adminDb();
   const { data: conversation, error } = await supabase
     .from('conversations')
@@ -57,6 +57,7 @@ async function replyTicket(ticketId: string, replyText: string, sourceTelegramMe
     sender_type: 'admin',
     message_text: replyText,
     telegram_message_id: sourceTelegramMessageId ?? null,
+    telegram_chat_id: sourceTelegramChatId ?? null,
     is_read: false,
   });
   if (messageError) throw messageError;
@@ -84,7 +85,7 @@ async function handleAdminMessage(message: TelegramMessage) {
   const parsed = direct ?? (repliedTicket ? { ticketId: repliedTicket, replyText: text } : null);
 
   if (parsed) {
-    const ok = await replyTicket(parsed.ticketId, parsed.replyText, message.message_id);
+    const ok = await replyTicket(parsed.ticketId, parsed.replyText, message.message_id, adminChatId);
     await sendTelegramMessage(
       adminChatId,
       ok
@@ -180,7 +181,7 @@ async function handleAdminCallback(query: NonNullable<TelegramUpdate['callback_q
         const customerMessage = parsed.action === 'confirmed'
           ? '✅ تم تأكيد طلبك من فريق Louay Phone وسنتواصل معك لإتمام التفاصيل.'
           : '❌ تم إلغاء الطلب حاليًا. إذا كان ذلك غير مقصود، أرسل لنا رسالة.';
-        await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'bot', message_text: customerMessage, is_read: true });
+        await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'bot', message_text: customerMessage, is_read: true, telegram_chat_id: conversation.telegram_chat_id ?? null });
         await supabase.from('conversations').update({ status: parsed.action === 'confirmed' ? 'processing' : 'closed', last_message_at: new Date().toISOString() }).eq('id', conversation.id);
         if (conversation.telegram_chat_id && Number(conversation.telegram_chat_id) !== adminChatId) {
           await sendTelegramMessage(conversation.telegram_chat_id, customerMessage);
@@ -220,7 +221,7 @@ async function handleAdminCallback(query: NonNullable<TelegramUpdate['callback_q
   } catch (error) {
     console.error('Telegram callback handler failed:', error);
     await setCallbackStatus(query.id, 'failed');
-    await sendTelegramMessage(adminChatId, `⚠️ تعذر تنفيذ العملية. حاول الضغط مرة أخرى بعد لحظات.`).catch(() => undefined);
+    await sendTelegramMessage(adminChatId, '⚠️ تعذر تنفيذ العملية. حاول الضغط مرة أخرى بعد لحظات.').catch(() => undefined);
     return true;
   }
 }
@@ -276,10 +277,11 @@ async function handleCustomerMessage(message: TelegramMessage) {
   const { data: existingMessage } = await supabase
     .from('messages')
     .select('id')
+    .eq('telegram_chat_id', chatId)
     .eq('telegram_message_id', message.message_id)
     .maybeSingle();
   if (!existingMessage) {
-    await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'user', message_text: text, telegram_message_id: message.message_id, is_read: false });
+    await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'user', message_text: text, telegram_message_id: message.message_id, telegram_chat_id: chatId, is_read: false });
   }
 
   if (adminChatId !== null) {
