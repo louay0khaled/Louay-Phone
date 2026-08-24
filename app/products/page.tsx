@@ -2,7 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { formatUsd, getActiveProductRows, hydrateProductRows, primaryImage, type Product, type ProductRow } from '@/lib/products';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 const SUPABASE_ORIGIN = 'https://gmpogiiqydoxoclxcvwh.supabase.co';
 type SearchParams = Promise<{ q?: string; brand?: string; page?: string; type?: string }>;
@@ -17,7 +17,11 @@ function classify(product: ProductRow): Exclude<ProductType, 'all'> {
 }
 
 function isSupabaseImage(url: string) { try { return new URL(url).origin === SUPABASE_ORIGIN; } catch { return false; } }
-function ProductImage({ src, alt }: { src: string; alt: string }) { return isSupabaseImage(src) ? <Image src={src} alt={alt} width={800} height={800} sizes="(max-width: 700px) 100vw, 33vw" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <img src={src} alt={alt} loading="lazy" />; }
+function ProductImage({ src, alt }: { src: string; alt: string }) {
+  return isSupabaseImage(src)
+    ? <Image src={src} alt={alt} width={800} height={800} sizes="(max-width: 700px) 100vw, 33vw" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+    : <img src={src} alt={alt} loading="lazy" decoding="async" />;
+}
 
 function ProductCard({ product }: { product: Product }) {
   const src = primaryImage(product);
