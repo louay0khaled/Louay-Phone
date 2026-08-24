@@ -33,10 +33,13 @@ create unique index if not exists uniq_conversations_telegram_chat
 create unique index if not exists uniq_messages_client_message_id
   on public.messages(client_message_id)
   where client_message_id is not null;
-
 create unique index if not exists uniq_messages_telegram_chat_message_id
   on public.messages(telegram_chat_id, telegram_message_id)
   where telegram_chat_id is not null and telegram_message_id is not null;
+create index if not exists conversations_order_id_idx
+  on public.conversations(order_id);
+create index if not exists orders_conversation_id_idx
+  on public.orders(conversation_id);
 
 create table if not exists public.telegram_processed_callbacks (
   callback_id text primary key,
@@ -154,6 +157,24 @@ $$;
 
 revoke all on function public.claim_order_notification(uuid) from public, anon, authenticated;
 grant execute on function public.claim_order_notification(uuid) to service_role;
+
+create or replace function public.claim_telegram_callback(p_callback_id text)
+returns boolean
+language sql
+security invoker
+set search_path = public
+as $$
+  insert into public.telegram_processed_callbacks(callback_id, status, created_at)
+  values (p_callback_id, 'processing', now())
+  on conflict (callback_id) do update
+    set status = 'processing', created_at = now()
+    where public.telegram_processed_callbacks.status = 'failed'
+       or (public.telegram_processed_callbacks.status = 'processing' and public.telegram_processed_callbacks.created_at < now() - interval '5 minutes')
+  returning true;
+$$;
+
+revoke all on function public.claim_telegram_callback(text) from public, anon, authenticated;
+grant execute on function public.claim_telegram_callback(text) to service_role;
 
 DO $$
 declare
